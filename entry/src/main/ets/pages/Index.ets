@@ -1,4 +1,5 @@
 import promptAction from '@ohos.promptAction';
+import router from '@ohos.router';
 
 interface DatePickerResult {
   year: number;
@@ -21,6 +22,12 @@ interface CalendarEvent {
   reminderMinutes?: number, // minutes before start
   notes?: string,
   _timerId?: number
+}
+
+// 在接口定义区域添加新的接口
+interface RouterParams {
+  action?: string;
+  event?: string;
 }
 
 function formatDateKey(d: Date): string {
@@ -67,16 +74,93 @@ struct Index {
   @State events: CalendarEvent[] = [];
   @State nextEventId: number = 1;
 
-  @State showEditor: boolean = false;
-  @State editingEventId?: number = undefined; // undefined for new
+  aboutToAppear() {
+    // 新增：页面显示时刷新数据
+    this.refreshEvents();
+  }
 
-  // Editor states
-  @State formTitle: string = '';
-  @State formDate: Date = new Date();
-  @State formStartMinutes: number = 9 * 60;
-  @State formEndMinutes: number = 10 * 60;
-  @State formReminderMinutes: number = 10;
-  @State formNotes: string = '';
+  private refreshEvents() {
+    // 可以从本地存储加载事件
+    // 这里保持原有逻辑
+  }
+
+  // @State showEditor: boolean = false;
+  // @State editingEventId?: number = undefined; // undefined for new
+  //
+  // // Editor states
+  // @State formTitle: string = '';
+  // @State formDate: Date = new Date();
+  // @State formStartMinutes: number = 9 * 60;
+  // @State formEndMinutes: number = 10 * 60;
+  // @State formReminderMinutes: number = 10;
+  // @State formNotes: string = '';
+
+  // 新增：从编辑页面返回时接收数据
+  onPageShow() {
+    const params = router.getParams() as RouterParams;
+    if (params && params.action === 'save' && params.event) {
+      const newEvent = JSON.parse(params.event) as CalendarEvent;
+      this.addOrUpdateEvent(newEvent);
+      // 清除参数，避免重复添加
+      router.replaceUrl({ url: 'pages/Index' });
+    }
+  }
+
+
+  // 新增：添加或更新事件
+  private addOrUpdateEvent(event: CalendarEvent) {
+    if (event.id && event.id > 0) {
+      // 更新现有事件
+      this.events = this.events.map(e => e.id === event.id ? event : e);
+    } else {
+      // 添加新事件 - 手动创建新对象
+      const newEvent: CalendarEvent = {
+        id: this.nextEventId++,
+        title: event.title,
+        dateKey: event.dateKey,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        reminderMinutes: event.reminderMinutes,
+        notes: event.notes,
+        _timerId: undefined
+      };
+
+      // 修复：使用 concat 方法而不是展开运算符
+      this.events = this.events.concat([newEvent]);
+      this.scheduleReminder(newEvent);
+    }
+  }
+
+  // 修改：获取本周日期范围
+  private getWeekDates(centerDate: Date): Date[] {
+    const start = new Date(centerDate);
+    const dayOfWeek = start.getDay();
+    start.setDate(start.getDate() - dayOfWeek);
+
+    const weekDates: Date[] = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(start);
+      date.setDate(start.getDate() + i);
+      weekDates.push(date);
+    }
+    return weekDates;
+  }
+  //
+  // 新增：获取本周是第几周
+  private getWeekNumber(date: Date): number {
+    const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+    const pastDaysOfYear = (date.getTime() - firstDayOfYear.getTime()) / 86400000;
+    return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+  }
+
+  // 修改：周视图标题格式
+  private weekTitle(): string {
+    const weekNumber = this.getWeekNumber(this.selectedDate);
+    const year = this.selectedDate.getFullYear();
+    const month = this.selectedDate.getMonth() + 1;
+    return `${year}年${month}月第${weekNumber}周`;
+  }
+
 
   private isSameDay(a: Date, b: Date): boolean {
     return a.getFullYear() === b.getFullYear() &&
@@ -112,84 +196,106 @@ struct Index {
     }
   }
 
-  private openEditorForNew(date: Date) {
-    this.editingEventId = undefined;
-    this.formTitle = '';
-    this.formDate = new Date(date);
-    this.formStartMinutes = 9 * 60;
-    this.formEndMinutes = 10 * 60;
-    this.formReminderMinutes = 10;
-    this.formNotes = '';
-    this.showEditor = true;
-  }
-
-  private openEditorForEdit(evt: CalendarEvent) {
-    this.editingEventId = evt.id;
-    this.formTitle = evt.title;
-    // parse dateKey
-    const dateParts = evt.dateKey.split('-');
-    const y = Number(dateParts[0]);
-    const m = Number(dateParts[1]);
-    const d = Number(dateParts[2]);
-    this.formDate = new Date(y, m - 1, d);
-    this.formStartMinutes = parseTimeToMinutes(evt.startTime);
-    this.formEndMinutes = parseTimeToMinutes(evt.endTime);
-    this.formReminderMinutes = evt.reminderMinutes ?? 0;
-    this.formNotes = evt.notes ?? '';
-    this.showEditor = true;
-  }
-
-  private saveEditor() {
-    const dateKey = formatDateKey(this.formDate);
-    const startTime = minutesToTime(this.formStartMinutes);
-    const endTime = minutesToTime(this.formEndMinutes);
-    if (!this.formTitle || this.formEndMinutes <= this.formStartMinutes) {
-      promptAction.showToast({ message: '请检查标题与时间范围', duration: 2000 });
-      return;
-    }
-    if (this.editingEventId === undefined) {
-      const newEvt: CalendarEvent = {
-        id: this.nextEventId++,
-        title: this.formTitle,
-        dateKey,
-        startTime,
-        endTime,
-        reminderMinutes: this.formReminderMinutes,
-        notes: this.formNotes
-      };
-      const newEvents: CalendarEvent[] = [];
-      for (let i = 0; i < this.events.length; i++) {
-        newEvents.push(this.events[i]);
+  // 跳转到新建事件页面
+  private navigateToNewEvent(date: Date) {
+    router.pushUrl({
+      url: 'pages/EditPage',
+      params: {
+        mode: 'create',
+        date: date.getTime()
       }
-      newEvents.push(newEvt);
-      this.events = newEvents;
-      this.scheduleReminder(newEvt);
-      this.selectedDate = new Date(this.formDate);
-      this.monthViewDate = new Date(this.formDate);
-    } else {
-      this.events = this.events.map(e => {
-        if (e.id === this.editingEventId) {
-          this.cancelReminder(e);
-          const updated: CalendarEvent = {
-            id: e.id,
-            title: this.formTitle,
-            dateKey: dateKey,
-            startTime: startTime,
-            endTime: endTime,
-            reminderMinutes: this.formReminderMinutes,
-            notes: this.formNotes,
-            _timerId: undefined
-          };
-          // reschedule
-          this.scheduleReminder(updated);
-          return updated;
-        }
-        return e;
-      });
-    }
-    this.showEditor = false;
+    });
   }
 
+  // 跳转到编辑事件页面
+  private navigateToEditEvent(evt: CalendarEvent) {
+    router.pushUrl({
+      url: 'pages/EditPage',
+      params: {
+        mode: 'edit',
+        event: JSON.stringify(evt)
+      }
+    });
+  }
+
+  // private openEditorForNew(date: Date) {
+  //   this.editingEventId = undefined;
+  //   this.formTitle = '';
+  //   this.formDate = new Date(date);
+  //   this.formStartMinutes = 9 * 60;
+  //   this.formEndMinutes = 10 * 60;
+  //   this.formReminderMinutes = 10;
+  //   this.formNotes = '';
+  //   this.showEditor = true;
+  // }
+  //
+  // private openEditorForEdit(evt: CalendarEvent) {
+  //   this.editingEventId = evt.id;
+  //   this.formTitle = evt.title;
+  //   // parse dateKey
+  //   const dateParts = evt.dateKey.split('-');
+  //   const y = Number(dateParts[0]);
+  //   const m = Number(dateParts[1]);
+  //   const d = Number(dateParts[2]);
+  //   this.formDate = new Date(y, m - 1, d);
+  //   this.formStartMinutes = parseTimeToMinutes(evt.startTime);
+  //   this.formEndMinutes = parseTimeToMinutes(evt.endTime);
+  //   this.formReminderMinutes = evt.reminderMinutes ?? 0;
+  //   this.formNotes = evt.notes ?? '';
+  //   this.showEditor = true;
+  // }
+  //
+  // private saveEditor() {
+  //   const dateKey = formatDateKey(this.formDate);
+  //   const startTime = minutesToTime(this.formStartMinutes);
+  //   const endTime = minutesToTime(this.formEndMinutes);
+  //   if (!this.formTitle || this.formEndMinutes <= this.formStartMinutes) {
+  //     promptAction.showToast({ message: '请检查标题与时间范围', duration: 2000 });
+  //     return;
+  //   }
+  //   if (this.editingEventId === undefined) {
+  //     const newEvt: CalendarEvent = {
+  //       id: this.nextEventId++,
+  //       title: this.formTitle,
+  //       dateKey,
+  //       startTime,
+  //       endTime,
+  //       reminderMinutes: this.formReminderMinutes,
+  //       notes: this.formNotes
+  //     };
+  //     const newEvents: CalendarEvent[] = [];
+  //     for (let i = 0; i < this.events.length; i++) {
+  //       newEvents.push(this.events[i]);
+  //     }
+  //     newEvents.push(newEvt);
+  //     this.events = newEvents;
+  //     this.scheduleReminder(newEvt);
+  //     this.selectedDate = new Date(this.formDate);
+  //     this.monthViewDate = new Date(this.formDate);
+  //   } else {
+  //     this.events = this.events.map(e => {
+  //       if (e.id === this.editingEventId) {
+  //         this.cancelReminder(e);
+  //         const updated: CalendarEvent = {
+  //           id: e.id,
+  //           title: this.formTitle,
+  //           dateKey: dateKey,
+  //           startTime: startTime,
+  //           endTime: endTime,
+  //           reminderMinutes: this.formReminderMinutes,
+  //           notes: this.formNotes,
+  //           _timerId: undefined
+  //         };
+  //         // reschedule
+  //         this.scheduleReminder(updated);
+  //         return updated;
+  //       }
+  //       return e;
+  //     });
+  //   }
+  //   this.showEditor = false;
+  // }
+  //
   private deleteEvent(evt: CalendarEvent) {
     this.cancelReminder(evt);
     this.events = this.events.filter(e => e.id !== evt.id);
@@ -231,14 +337,14 @@ struct Index {
     return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
   }
 
-  private createTimePickerDate(totalMinutes: number): Date {
-    const base = new Date(this.formDate);
-    const hour = Math.floor(totalMinutes / 60);
-    const minute = totalMinutes % 60;
-    const result = new Date(base);
-    result.setHours(hour, minute, 0, 0);
-    return result;
-  }
+  // private createTimePickerDate(totalMinutes: number): Date {
+  //   const base = new Date(this.formDate);
+  //   const hour = Math.floor(totalMinutes / 60);
+  //   const minute = totalMinutes % 60;
+  //   const result = new Date(base);
+  //   result.setHours(hour, minute, 0, 0);
+  //   return result;
+  // }
 
   private getPreviewEvents(date: Date): CalendarEvent[] {
     const events = this.eventsOn(date);
@@ -249,6 +355,24 @@ struct Index {
     return preview;
   }
 
+  // 新增：获取所有日程（按日期排序）
+  private getAllEvents(): CalendarEvent[] {
+    return this.events.sort((a, b) => {
+      const dateCompare = a.dateKey.localeCompare(b.dateKey);
+      if (dateCompare !== 0) return dateCompare;
+      return parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime);
+    });
+  }
+
+  // 新增：计算属性用于周视图
+  private get weekDates(): Date[] {
+    return this.getWeekDates(this.selectedDate);
+  }
+
+  private get weekNumber(): number {
+    return this.getWeekNumber(this.selectedDate);
+  }
+
   @Builder
   renderExtraIndicator(totalCount: number) {
     if (totalCount > 2) {
@@ -256,20 +380,43 @@ struct Index {
     }
   }
 
+  // @Builder
+  // renderSelectedDayEventsList(events: CalendarEvent[]) {
+  //   if (events.length === 0) {
+  //     Text('暂无日程').opacity(0.6).padding(12);
+  //     // return;
+  //   }
+  //   else {
+  //     ForEach(events, (evt: CalendarEvent) => {
+  //       Row() {
+  //         Column() {
+  //           Text(evt.title).fontSize(16).fontWeight(FontWeight.Medium);
+  //           Text(`${evt.startTime} - ${evt.endTime}`).fontSize(12).opacity(0.8);
+  //         }.alignItems(HorizontalAlign.Start).layoutWeight(1);
+  //         Button('编辑').onClick(() => this.openEditorForEdit(evt)).margin({ right: 6 });
+  //         Button('删除').type(ButtonType.Circle).onClick(() => this.deleteEvent(evt));
+  //       }
+  //       .padding(10)
+  //       .margin({ left: 12, right: 12, bottom: 8 })
+  //       .backgroundColor('#f7f7f7')
+  //       .borderRadius(8);
+  //     }, (evt: CalendarEvent) => evt.id.toString());
+  //   }
+  // }
+
+  //新的
   @Builder
   renderSelectedDayEventsList(events: CalendarEvent[]) {
     if (events.length === 0) {
       Text('暂无日程').opacity(0.6).padding(12);
-      // return;
-    }
-    else {
+    } else {
       ForEach(events, (evt: CalendarEvent) => {
         Row() {
           Column() {
             Text(evt.title).fontSize(16).fontWeight(FontWeight.Medium);
             Text(`${evt.startTime} - ${evt.endTime}`).fontSize(12).opacity(0.8);
           }.alignItems(HorizontalAlign.Start).layoutWeight(1);
-          Button('编辑').onClick(() => this.openEditorForEdit(evt)).margin({ right: 6 });
+          Button('编辑').onClick(() => this.navigateToEditEvent(evt)).margin({ right: 6 });
           Button('删除').type(ButtonType.Circle).onClick(() => this.deleteEvent(evt));
         }
         .padding(10)
@@ -284,16 +431,17 @@ struct Index {
   // renderDayViewEvents(events: CalendarEvent[]) {
   //   if (events.length === 0) {
   //     Text('今天暂无安排').opacity(0.6).padding(12);
-  //     // return;
-  //   }
-  //   else {
+  //   } else {
   //     ForEach(events, (evt: CalendarEvent) => {
-  //       const noteText = evt.notes ?? '';
-  //       const hasNote = noteText.length > 0;
   //       Column() {
   //         Text(evt.title).fontSize(16).fontWeight(FontWeight.Medium);
   //         Text(`${evt.startTime} - ${evt.endTime}`).fontSize(12).opacity(0.8);
-  //         this.renderEventNote(hasNote, noteText);
+  //
+  //         // 直接在 @Builder 中判断
+  //         if (evt.notes && evt.notes.length > 0) {
+  //           Text(evt.notes).fontSize(12).opacity(0.9).margin({ top: 4 });
+  //         }
+  //
   //         Row() {
   //           Button('编辑').onClick(() => this.openEditorForEdit(evt)).margin({ right: 8 });
   //           Button('删除').type(ButtonType.Circle).onClick(() => this.deleteEvent(evt));
@@ -306,15 +454,8 @@ struct Index {
   //     }, (evt: CalendarEvent) => evt.id.toString());
   //   }
   // }
-  //
-  // @Builder
-  // renderEventNote(show: boolean, noteText: string) {
-  //   if (show) {
-  //     // return;
-  //     Text(noteText).fontSize(12).opacity(0.9).margin({ top: 4 });
-  //   }
-  // }
 
+  //新的
   @Builder
   renderDayViewEvents(events: CalendarEvent[]) {
     if (events.length === 0) {
@@ -324,14 +465,11 @@ struct Index {
         Column() {
           Text(evt.title).fontSize(16).fontWeight(FontWeight.Medium);
           Text(`${evt.startTime} - ${evt.endTime}`).fontSize(12).opacity(0.8);
-
-          // 直接在 @Builder 中判断
           if (evt.notes && evt.notes.length > 0) {
             Text(evt.notes).fontSize(12).opacity(0.9).margin({ top: 4 });
           }
-
           Row() {
-            Button('编辑').onClick(() => this.openEditorForEdit(evt)).margin({ right: 8 });
+            Button('编辑').onClick(() => this.navigateToEditEvent(evt)).margin({ right: 8 });
             Button('删除').type(ButtonType.Circle).onClick(() => this.deleteEvent(evt));
           }.margin({ top: 6 });
         }
@@ -343,117 +481,275 @@ struct Index {
     }
   }
 
+  // @Builder
+  // renderEventNote(evt: CalendarEvent) {
+  //   if (evt.notes && evt.notes.length > 0) {
+  //     Text(evt.notes).fontSize(12).opacity(0.9).margin({ top: 4 });
+  //   }
+  // }
+  //
+  // @Builder
+  // renderEditorOverlay() {
+  //   if (this.showEditor) {
+  //     // return;
+  //     Stack() {
+  //       // Dialog content
+  //         Column() {
+  //           Text(this.editingEventId === undefined ? '新建日程' : '编辑日程')
+  //             .fontSize(18).fontWeight(FontWeight.Bold).padding({ bottom: 8 });
+  //
+  //           // Title
+  //           Text('标题').fontSize(14).opacity(0.8).alignSelf(ItemAlign.Start);
+  //           TextInput({ placeholder: '请输入标题', text: this.formTitle })
+  //             .onChange(v => this.formTitle = v)
+  //             .height(36)
+  //             .backgroundColor('#f5f5f5')
+  //             .borderRadius(6)
+  //             .padding({ left: 8, right: 8 })
+  //             .margin({ bottom: 8 });
+  //
+  //           // Date
+  //           Text('日期').fontSize(14).opacity(0.8).alignSelf(ItemAlign.Start);
+  //           DatePicker({
+  //             start: new Date(2000, 0, 1),
+  //             end: new Date(2100, 11, 31),
+  //             selected: this.formDate
+  //           })
+  //             .onChange((value: DatePickerResult) => {
+  //               this.formDate = new Date(value.year, value.month - 1, value.day);
+  //             })
+  //             .margin({ bottom: 8 });
+  //
+  //           // Time range
+  //           Text('开始时间').fontSize(14).opacity(0.8).alignSelf(ItemAlign.Start);
+  //           TimePicker({
+  //             selected: this.createTimePickerDate(this.formStartMinutes)
+  //           })
+  //             .useMilitaryTime(true)
+  //             .onChange((value: TimePickerResult) => {
+  //               this.formStartMinutes = value.hour * 60 + value.minute;
+  //             })
+  //             .margin({ bottom: 6 });
+  //
+  //           Text('结束时间').fontSize(14).opacity(0.8).alignSelf(ItemAlign.Start);
+  //           TimePicker({
+  //             selected: this.createTimePickerDate(this.formEndMinutes)
+  //           })
+  //             .useMilitaryTime(true)
+  //             .onChange((value: TimePickerResult) => {
+  //               this.formEndMinutes = value.hour * 60 + value.minute;
+  //             })
+  //             .margin({ bottom: 6 });
+  //
+  //           // Reminder
+  //           Text('提前提醒（分钟）').fontSize(14).opacity(0.8).alignSelf(ItemAlign.Start);
+  //           Slider({
+  //             min: 0,
+  //             max: 120,
+  //             value: this.formReminderMinutes,
+  //             step: 5
+  //           })
+  //             .showSteps(true)
+  //             .onChange((v: number) => this.formReminderMinutes = Math.round(v));
+  //           Text(`${this.formReminderMinutes} 分钟`).fontSize(12).opacity(0.7).margin({ bottom: 6 });
+  //
+  //           // Notes
+  //           Text('备注').fontSize(14).opacity(0.8).alignSelf(ItemAlign.Start);
+  //           TextInput({ placeholder: '可选', text: this.formNotes })
+  //             .onChange(v => this.formNotes = v)
+  //             .height(36)
+  //             .backgroundColor('#f5f5f5')
+  //             .borderRadius(6)
+  //             .padding({ left: 8, right: 8 })
+  //             .margin({ bottom: 10 });
+  //
+  //           Row() {
+  //             Button('取消')
+  //               .type(ButtonType.Normal)
+  //               .onClick(() => this.showEditor = false)
+  //               .margin({ right: 12 });
+  //             Button('保存')
+  //               .type(ButtonType.Capsule)
+  //               .backgroundColor('#1677ff')
+  //               .fontColor(Color.White)
+  //               .onClick(() => this.saveEditor());
+  //           }.justifyContent(FlexAlign.End).width('100%').margin({ top: 8 });
+  //         }
+  //         .width('92%')
+  //         .padding(16)
+  //         .backgroundColor(Color.White)
+  //         .borderRadius(12)
+  //         .shadow({ radius: 20, color: '#00000020', offsetX: 0, offsetY: 6 });
+  //     }
+  //     .width('100%')
+  //     .height('100%')
+  //     .backgroundColor('#00000033')
+  //     .align(Alignment.Center)
+  //     .onClick(() => {
+  //       // click backdrop to close
+  //       this.showEditor = false;
+  //     });
+  //   }
+  //   // Semi-transparent backdrop
+  //
+  // }
+
+  // 新增：所有日程列表
   @Builder
-  renderEventNote(evt: CalendarEvent) {
-    if (evt.notes && evt.notes.length > 0) {
-      Text(evt.notes).fontSize(12).opacity(0.9).margin({ top: 4 });
+  renderAllEventsList() {
+    if (this.events.length === 0) {
+      Column() {
+        Text('暂无日程')
+          .fontSize(16)
+          .opacity(0.6)
+          .margin({ top: 50 });
+        Text('点击右下角"+"按钮创建第一个日程')
+          .fontSize(12)
+          .opacity(0.4)
+          .margin({ top: 8 });
+      }
+      .width('100%')
+      .alignItems(HorizontalAlign.Center);
+    } else {
+      Scroll() {
+        Column() {
+          ForEach(this.getAllEvents(), (evt: CalendarEvent) => {
+            Column() {
+              Row() {
+                Column() {
+                  Text(evt.dateKey)
+                    .fontSize(12)
+                    .opacity(0.6);
+                  Text(evt.title)
+                    .fontSize(16)
+                    .fontWeight(FontWeight.Medium);
+                  Text(`${evt.startTime} - ${evt.endTime}`)
+                    .fontSize(12)
+                    .opacity(0.8);
+                }
+                .alignItems(HorizontalAlign.Start)
+                .layoutWeight(1);
+
+                Row() {
+                  Button('编辑')
+                    .onClick(() => this.navigateToEditEvent(evt))
+                    .margin({ right: 6 });
+                  Button('删除')
+                    .type(ButtonType.Circle)
+                    .onClick(() => this.deleteEvent(evt));
+                }
+              }
+
+              if (evt.notes && evt.notes.length > 0) {
+                Text(evt.notes)
+                  .fontSize(12)
+                  .opacity(0.9)
+                  .margin({ top: 4 })
+                  .alignSelf(ItemAlign.Start);
+              }
+            }
+            .padding(12)
+            .margin({ left: 12, right: 12, bottom: 8 })
+            .backgroundColor('#f7f7f7')
+            .borderRadius(8);
+          }, (evt: CalendarEvent) => evt.id.toString());
+        }
+      }
     }
   }
 
+  // 修改：周视图构建器 - 将逻辑拆分成多个小构建器
   @Builder
-  renderEditorOverlay() {
-    if (this.showEditor) {
-      // return;
-      Stack() {
-        // Dialog content
-          Column() {
-            Text(this.editingEventId === undefined ? '新建日程' : '编辑日程')
-              .fontSize(18).fontWeight(FontWeight.Bold).padding({ bottom: 8 });
+  renderWeekHeader(weekDates: Date[]) {
+    Row() {
+      ForEach(['日', '一', '二', '三', '四', '五', '六'], (wd: string, index: number) => {
+        Column() {
+          Text(wd)
+            .fontSize(14)
+            .opacity(0.7)
+            .margin({ bottom: 4 });
+          Text(`${weekDates[index].getMonth() + 1}/${weekDates[index].getDate()}`)
+            .fontSize(12)
+            .opacity(0.8);
+        }
+        .width('14.28%')
+        .padding(4)
+        .backgroundColor(this.isSameDay(weekDates[index], this.selectedDate) ? '#f0f5ff' : Color.Transparent)
+        .borderRadius(6)
+        .onClick(() => {
+          this.selectedDate = new Date(weekDates[index]);
+        });
+      }, (wd: string, index?: number) => wd + index)
+    }
+    .width('100%')
+    .padding({ left: 8, right: 8, bottom: 12 })
+  }
 
-            // Title
-            Text('标题').fontSize(14).opacity(0.8).alignSelf(ItemAlign.Start);
-            TextInput({ placeholder: '请输入标题', text: this.formTitle })
-              .onChange(v => this.formTitle = v)
-              .height(36)
-              .backgroundColor('#f5f5f5')
-              .borderRadius(6)
-              .padding({ left: 8, right: 8 })
-              .margin({ bottom: 8 });
+  @Builder
+  renderWeekDay(date: Date) {
+    Column() {
+      // 日期标题
+      Text(`${date.getDate()}`)
+        .fontSize(16)
+        .fontWeight(FontWeight.Medium)
+        .margin({ bottom: 8 });
 
-            // Date
-            Text('日期').fontSize(14).opacity(0.8).alignSelf(ItemAlign.Start);
-            DatePicker({
-              start: new Date(2000, 0, 1),
-              end: new Date(2100, 11, 31),
-              selected: this.formDate
-            })
-              .onChange((value: DatePickerResult) => {
-                this.formDate = new Date(value.year, value.month - 1, value.day);
-              })
-              .margin({ bottom: 8 });
+      // 该日期的事件
+      Scroll() {
+        Column() {
+          ForEach(this.eventsOn(date), (evt: CalendarEvent) => {
+            Column() {
+              Text(evt.title)
+                .fontSize(12)
+                .maxLines(1);
+              Text(`${evt.startTime}-${evt.endTime}`)
+                .fontSize(10)
+                .opacity(0.7);
+            }
+            .padding(4)
+            .backgroundColor('#e6f7ff')
+            .borderRadius(4)
+            .margin({ bottom: 4 })
+            .onClick(() => this.navigateToEditEvent(evt));
+          }, (evt: CalendarEvent) => evt.id.toString());
 
-            // Time range
-            Text('开始时间').fontSize(14).opacity(0.8).alignSelf(ItemAlign.Start);
-            TimePicker({
-              selected: this.createTimePickerDate(this.formStartMinutes)
-            })
-              .useMilitaryTime(true)
-              .onChange((value: TimePickerResult) => {
-                this.formStartMinutes = value.hour * 60 + value.minute;
-              })
-              .margin({ bottom: 6 });
-
-            Text('结束时间').fontSize(14).opacity(0.8).alignSelf(ItemAlign.Start);
-            TimePicker({
-              selected: this.createTimePickerDate(this.formEndMinutes)
-            })
-              .useMilitaryTime(true)
-              .onChange((value: TimePickerResult) => {
-                this.formEndMinutes = value.hour * 60 + value.minute;
-              })
-              .margin({ bottom: 6 });
-
-            // Reminder
-            Text('提前提醒（分钟）').fontSize(14).opacity(0.8).alignSelf(ItemAlign.Start);
-            Slider({
-              min: 0,
-              max: 120,
-              value: this.formReminderMinutes,
-              step: 5
-            })
-              .showSteps(true)
-              .onChange((v: number) => this.formReminderMinutes = Math.round(v));
-            Text(`${this.formReminderMinutes} 分钟`).fontSize(12).opacity(0.7).margin({ bottom: 6 });
-
-            // Notes
-            Text('备注').fontSize(14).opacity(0.8).alignSelf(ItemAlign.Start);
-            TextInput({ placeholder: '可选', text: this.formNotes })
-              .onChange(v => this.formNotes = v)
-              .height(36)
-              .backgroundColor('#f5f5f5')
-              .borderRadius(6)
-              .padding({ left: 8, right: 8 })
-              .margin({ bottom: 10 });
-
-            Row() {
-              Button('取消')
-                .type(ButtonType.Normal)
-                .onClick(() => this.showEditor = false)
-                .margin({ right: 12 });
-              Button('保存')
-                .type(ButtonType.Capsule)
-                .backgroundColor('#1677ff')
-                .fontColor(Color.White)
-                .onClick(() => this.saveEditor());
-            }.justifyContent(FlexAlign.End).width('100%').margin({ top: 8 });
+          // 如果没有事件，显示提示
+          if (this.eventsOn(date).length === 0) {
+            Text('无日程')
+              .fontSize(10)
+              .opacity(0.5)
+              .margin({ top: 20 });
           }
-          .width('92%')
-          .padding(16)
-          .backgroundColor(Color.White)
-          .borderRadius(12)
-          .shadow({ radius: 20, color: '#00000020', offsetX: 0, offsetY: 6 });
+        }
+      }
+      .height(120)
+    }
+    .width('14.28%')
+    .padding(6)
+    .backgroundColor(this.isSameDay(date, this.selectedDate) ? '#f0f8ff' : '#f9f9f9')
+    .borderRadius(8)
+  }
+
+  @Builder
+  renderWeekView() {
+    // 在构建器外部获取数据，然后传入构建器
+    Column() {
+      // 渲染周表头
+      this.renderWeekHeader(this.getWeekDates(this.selectedDate));
+
+      // 渲染周内容
+      Row() {
+        ForEach(this.getWeekDates(this.selectedDate), (date: Date, index?: number) => {
+          this.renderWeekDay(date);
+        }, (date: Date, index?: number) => formatDateKey(date) + index)
       }
       .width('100%')
-      .height('100%')
-      .backgroundColor('#00000033')
-      .align(Alignment.Center)
-      .onClick(() => {
-        // click backdrop to close
-        this.showEditor = false;
-      });
+      .height(200)
     }
-    // Semi-transparent backdrop
-
+    .width('100%')
+    .padding(12)
+    .justifyContent(FlexAlign.Start)
+    .height(400)
   }
 
   build() {
@@ -463,7 +759,8 @@ struct Index {
         // App Title and navigation
         Row() {
           Button('<')
-            .type(ButtonType.Normal)
+            .type(ButtonType.Circle)
+            .backgroundColor('#ffe9b22e')
             .onClick(() => {
               if (this.currentTabIndex === 0) {
                 const d = new Date(this.monthViewDate);
@@ -482,12 +779,13 @@ struct Index {
               }
             })
           Blank()
-          Text('简洁日历')
+          Text('日历')
             .fontSize(20)
             .fontWeight(FontWeight.Medium)
           Blank()
           Button('>')
-            .type(ButtonType.Normal)
+            .type(ButtonType.Circle)
+            .backgroundColor('#ffe9b22e')
             .onClick(() => {
               if (this.currentTabIndex === 0) {
                 const d = new Date(this.monthViewDate);
@@ -509,10 +807,23 @@ struct Index {
         .width('100%')
         .padding(12)
 
-        Text(this.monthTitle())
-          .fontSize(18)
-        .fontWeight(FontWeight.Bold)
-          .padding({ left: 16, right: 16, bottom: 8 })
+        // Text(this.monthTitle())
+        //   .fontSize(18)
+        //   .fontWeight(FontWeight.Bold)
+        //   .padding({ left: 16, right: 16, bottom: 8 })
+
+        // 修改：根据当前标签显示不同标题
+        if (this.currentTabIndex === 0) {
+          Text(this.monthTitle())
+            .fontSize(18)
+            .fontWeight(FontWeight.Bold)
+            .padding({ left: 16, right: 16, bottom: 8 });
+        } else if (this.currentTabIndex === 1) {
+          Text(this.weekTitle())
+            .fontSize(18)
+            .fontWeight(FontWeight.Bold)
+            .padding({ left: 16, right: 16, bottom: 8 });
+        }
 
         Tabs({ barPosition: BarPosition.Start, index: this.currentTabIndex }) {
           TabContent() {
@@ -571,26 +882,7 @@ struct Index {
 
           TabContent() {
             // Week View
-            Column() {
-              Row() {
-                ForEach(this.weekDatesAround(this.selectedDate), (d: Date) => {
-                  Column() {
-                    Text(`${d.getMonth() + 1}/${d.getDate()}`).fontSize(14).opacity(0.8)
-                    ForEach(this.eventsOn(d), (evt: CalendarEvent) => {
-                      Text(`${evt.startTime} ${evt.title}`).fontSize(12).lineHeight(16).margin({ top: 4 })
-                        .onClick(() => this.openEditorForEdit(evt))
-                    }, (evt: CalendarEvent) => evt.id.toString())
-                  }
-                  .width('14.28%')
-                  .padding(6)
-                  .backgroundColor(this.isSameDay(d, this.selectedDate) ? '#f0f5ff' : Color.Transparent)
-                  .borderRadius(6)
-                  .onClick(() => this.selectedDate = new Date(d))
-                }, (d: Date) => formatDateKey(d))
-              }
-              .width('100%')
-              .padding(8)
-            }
+            this.renderWeekView();
           }.tabBar('周')
 
           TabContent() {
@@ -600,6 +892,17 @@ struct Index {
               this.renderDayViewEvents(this.eventsOn(this.selectedDate));
             }
           }.tabBar('日')
+
+          // 新增：所有日程标签页
+          TabContent() {
+            Column() {
+              Text('所有日程')
+                .fontSize(18)
+                .fontWeight(FontWeight.Medium)
+                .padding(12);
+              this.renderAllEventsList();
+            }
+          }.tabBar('所有日程')
         }
         .onChange((i: number) => this.currentTabIndex = i)
         .barMode(BarMode.Fixed)
@@ -610,16 +913,18 @@ struct Index {
       .height('100%')
 
       // Floating Add Button
-      Button('+ 新建')
+      Button('+')
         .type(ButtonType.Capsule)
-        .backgroundColor('#1677ff')
+        .backgroundColor('#ffe9b22e')
         .fontColor(Color.White)
-        .position({ x: '100%', y: '100%' })
-        .translate({ x: -20, y: -20 })
-        .onClick(() => this.openEditorForNew(this.selectedDate))
+        .position({ x: '300.00vp', y: '680.00vp' })
+        // .translate({ x: -20, y: -20 })
+        // .onClick(() => this.openEditorForNew(this.selectedDate))
+        //新的
+        .onClick(() => this.navigateToNewEvent(this.selectedDate))
 
       // Editor Overlay
-      this.renderEditorOverlay();
+      // this.renderEditorOverlay();
     }
     .height('100%')
     .width('100%')
