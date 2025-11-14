@@ -6,7 +6,7 @@ export interface CalendarEvent {
   endTime: string,
   reminderMinutes?: number,
   notes?: string,
-  _timerId?: number
+  _timerId?: number //标识当前日历事件关联的定时器
 }
 
 export interface DatePickerResult {
@@ -31,3 +31,4 @@ export interface EditorParams {
   date?: number;
   event?: string;
 }
+

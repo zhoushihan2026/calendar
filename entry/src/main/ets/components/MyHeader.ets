@@ -1,26 +1,23 @@
 @Component
 export struct MyHeader {
-  @State currentTabIndex: number = 0;
-  // @State selectedDate: Date = new Date();
-  // @State monthViewDate: Date = new Date();
+  @Prop currentTabIndex: number = 0;
   @Link selectedDate: Date;
   @Link monthViewDate: Date;
 
-  // private onPrevClick: () => void = () => {};
-  // private onNextClick: () => void = () => {};
-
+  // 按钮逻辑
   private handlePrevClick() {
     if (this.currentTabIndex === 0) {
-      // 直接修改 @Link 绑定的数据
       const d = new Date(this.monthViewDate);
       d.setMonth(d.getMonth() - 1);
       this.monthViewDate = d;
-    } else if (this.currentTabIndex === 1) {
+    }
+    else if (this.currentTabIndex === 1) {
       const d = new Date(this.selectedDate);
       d.setDate(d.getDate() - 7);
       this.selectedDate = d;
       this.monthViewDate = new Date(d);
-    } else {
+    }
+    else {
       const d = new Date(this.selectedDate);
       d.setDate(d.getDate() - 1);
       this.selectedDate = d;
@@ -45,15 +42,12 @@ export struct MyHeader {
     }
   }
 
-  aboutToAppear() {
-    // 初始化回调函数
-  }
-
   build() {
     Row() {
       Button('<')
         .type(ButtonType.Circle)
         .backgroundColor('#ffe9b22e')
+        .fontSize(20)
         .onClick(() => this.handlePrevClick())
 
       Blank()
@@ -65,6 +59,7 @@ export struct MyHeader {
       Button('>')
         .type(ButtonType.Circle)
         .backgroundColor('#ffe9b22e')
+        .fontSize(20)
         .onClick(() => this.handleNextClick())
     }
     .width('100%')

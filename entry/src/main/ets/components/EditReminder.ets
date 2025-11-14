@@ -1,10 +1,9 @@
 @Component
-export struct ReminderSection {
+export struct EditReminder {
   @Link formReminderMinutes: number;
 
   private handleReminderChange(v: number) {
     const minutes = Math.round(v);
-    // 直接更新通过 @Link 绑定的数据
     this.formReminderMinutes = minutes;
   }
 
@@ -14,7 +13,18 @@ export struct ReminderSection {
         .fontSize(16)
         .fontWeight(FontWeight.Medium)
         .alignSelf(ItemAlign.Start)
-        .margin({ bottom: 10 });
+        .backgroundColor('#fff8f8f8')
+        .borderRadius(8)
+        .width(50)
+        .padding(5)
+        .height(30)
+        .textAlign(TextAlign.Center)
+        .shadow({
+          radius: 8,
+          color: '#1A1A1A08',  // 轻微阴影
+          offsetX: 0,
+          offsetY: 2
+        })
 
       Slider({
         min: 0,
@@ -30,7 +40,10 @@ export struct ReminderSection {
       Text(`${this.formReminderMinutes} 分钟`)
         .fontSize(14)
         .opacity(0.7)
-        .margin({ bottom: 20 });
-    }
+        .margin({ bottom: 8 });
+    }.backgroundColor('#fff3f3f3')
+    .padding(15)
+    .borderRadius(10)
+    .margin({top:10,bottom:10})
   }
 }
