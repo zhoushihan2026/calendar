@@ -1,35 +1,12 @@
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
-
-// 在编辑页面中重新定义 CalendarEvent 接口
-interface CalendarEvent {
-  id: number,
-  title: string,
-  dateKey: string,
-  startTime: string,
-  endTime: string,
-  reminderMinutes?: number,
-  notes?: string,
-  _timerId?: number
-}
-
-interface EditorParams {
-  mode: 'create' | 'edit';
-  date?: number;
-  event?: string;
-}
-
-interface DatePickerResult {
-  year: number;
-  month: number;
-  day: number;
-}
-
-interface TimePickerResult {
-  hour: number;
-  minute: number;
-  second?: number;
-}
+import { EditHeader } from '../components/EditHeader';
+import { TitleInput } from '../components/TitleInput';
+import { DatePickerSection } from '../components/DatePickerSection';
+import { TimePickerSection } from '../components/TimePickerSection';
+import { ReminderSection } from '../components/ReminderSection';
+import { NotesInput } from '../components/NotesInput';
+import { CalendarEvent, DatePickerResult, TimePickerResult ,EditorParams} from '../components/CalendarTypes';
 
 @Entry
 @Component
@@ -168,102 +145,43 @@ export struct EditPage {
 
   build() {
     Column() {
-      // 头部导航
-      Row() {
-        Button('←')
-          .type(ButtonType.Circle)
-          .onClick(() => this.cancel())
-          .backgroundColor('#ffe9b22e');
-
-        Text(this.isNewEvent ? '新建日程' : '编辑日程')
-          .fontSize(18)
-          .fontWeight(FontWeight.Bold)
-          .layoutWeight(1)
-          .textAlign(TextAlign.Center);
-
-        Button('保存')
-          .onClick(() => this.saveEvent())
-          .fontSize(16)
-          .backgroundColor('#ffe9b22e')
-          .fontColor(Color.White)
-          .padding({ left: 16, right: 16 })
-          // .enabled(!this.isSaving);
-      }
-      .width('100%')
-      .padding(12)
-      .border({ width: { bottom: 1 }, color: '#f0f0f0' })
+      // EditHeader 组件
+      EditHeader({
+        isNewEvent: this.isNewEvent,
+        formTitle: $formTitle,
+        formDate: $formDate,
+        formStartMinutes: $formStartMinutes,
+        formEndMinutes: $formEndMinutes,
+        formReminderMinutes: $formReminderMinutes,
+        formNotes: $formNotes
+      })
+        // .onCancel(() => this.cancel())
+        // .onSave(() => this.saveEvent())
 
       // 表单内容
       Scroll() {
         Column() {
-          // 标题
-          Text('标题').fontSize(16).fontWeight(FontWeight.Medium).alignSelf(ItemAlign.Start).margin({bottom:10});
-          TextInput({ placeholder: '请输入日程标题', text: this.formTitle })
-            .onChange((value: string) => this.formTitle = value)
-            .padding(12)
-            .backgroundColor('#f8f8f8')
-            .borderRadius(8)
-            .margin({ bottom: 20 });
-
-          // 日期选择
-          Text('日期').fontSize(16).fontWeight(FontWeight.Medium).alignSelf(ItemAlign.Start).margin({bottom:10});
-          DatePicker({
-            start: new Date(2000, 0, 1),
-            end: new Date(2100, 11, 31),
-            selected: this.formDate
+          TitleInput({
+            formTitle: $formTitle
           })
-            .onChange((value: DatePickerResult) => {
-              this.formDate = new Date(value.year, value.month - 1, value.day);
-            })
-            .margin({ bottom: 20 });
 
-          // 时间范围
-          Text('时间').fontSize(16).fontWeight(FontWeight.Medium).alignSelf(ItemAlign.Start).margin({bottom:10});
-          Row() {
-            Column() {
-              Text('开始时间').fontSize(14).opacity(0.8).margin({ bottom: 4 });
-              TimePicker({
-                selected: this.createTimePickerDate(this.formStartMinutes)
-              })
-                .useMilitaryTime(true)
-                .onChange((value: TimePickerResult) => {
-                  this.formStartMinutes = value.hour * 60 + value.minute;
-                });
-            }.layoutWeight(1)
-
-            Column() {
-              Text('结束时间').fontSize(14).opacity(0.8).margin({ bottom: 4 });
-              TimePicker({
-                selected: this.createTimePickerDate(this.formEndMinutes)
-              })
-                .useMilitaryTime(true)
-                .onChange((value: TimePickerResult) => {
-                  this.formEndMinutes = value.hour * 60 + value.minute;
-                });
-            }.layoutWeight(1)
-          }
-          .margin({ bottom: 20 })
-
-          // 提醒设置
-          Text('提醒').fontSize(16).fontWeight(FontWeight.Medium).alignSelf(ItemAlign.Start).margin({bottom:10});
-          Slider({
-            min: 0,
-            max: 120,
-            value: this.formReminderMinutes,
-            step: 5
+          DatePickerSection({
+            formDate: $formDate
           })
-            .showSteps(true)
-            .onChange((v: number) => this.formReminderMinutes = Math.round(v));
-          Text(`${this.formReminderMinutes} 分钟`).fontSize(14).opacity(0.7).margin({ bottom: 20 });
 
-          // 备注
-          Text('备注').fontSize(16).fontWeight(FontWeight.Medium).alignSelf(ItemAlign.Start).margin({bottom:10});
-          TextInput({ placeholder: '可选备注信息', text: this.formNotes })
-            .onChange((value: string) => this.formNotes = value)
-            .height(100)
-            .padding(12)
-            .backgroundColor('#f8f8f8')
-            .borderRadius(8);
+          TimePickerSection({
+            formStartMinutes: $formStartMinutes,
+            formEndMinutes: $formEndMinutes,
+            formDate: this.formDate
+          })
+
+          ReminderSection({
+            formReminderMinutes: $formReminderMinutes
+          })
+
+          NotesInput({
+            formNotes: $formNotes
+          })
         }
         .padding(16)
       }
