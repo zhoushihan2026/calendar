@@ -25,7 +25,7 @@ export struct EditInputNotes {
           offsetY: 2
         })
 
-      TextInput({ placeholder: '可选备注信息', text: this.formNotes })
+      TextInput({ placeholder: '请输入备注信息', text: this.formNotes })
         .onChange((value: string) => {
           this.handleNotesChange(value);
         })

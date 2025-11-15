@@ -46,7 +46,7 @@ export struct MyHeader {
     Row() {
       Button('<')
         .type(ButtonType.Circle)
-        .backgroundColor('#ffe9b22e')
+        .backgroundColor('#ffeccc2f')
         .fontSize(20)
         .onClick(() => this.handlePrevClick())
 
@@ -58,7 +58,7 @@ export struct MyHeader {
 
       Button('>')
         .type(ButtonType.Circle)
-        .backgroundColor('#ffe9b22e')
+        .backgroundColor('#ffeccc2f')
         .fontSize(20)
         .onClick(() => this.handleNextClick())
     }

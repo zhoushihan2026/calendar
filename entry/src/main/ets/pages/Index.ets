@@ -23,7 +23,7 @@ struct Index {
       {
         id: 1,
         title: '示例日程',
-        dateKey: '2024-01-01',
+        dateKey: '2025-11-15',
         startTime: '09:00',
         endTime: '10:00',
         reminderMinutes: 10,
@@ -63,10 +63,6 @@ struct Index {
   // }
 
   onPageShow() {
-    console.log('=== Index onPageShow ===');
-    console.log('当前 nextEventId:', this.nextEventId);
-    console.log('当前事件数量:', this.eventsData.list.length);
-
     const params = router.getParams() as RouterParams;
     if (params === undefined) {
       return;
@@ -75,15 +71,21 @@ struct Index {
     if (params && params.action === 'save' && params.event) {
       try {
         const newEvent = JSON.parse(params.event) as CalendarEvent;
-        console.log('准备添加事件:', newEvent.title);
-        console.log('添加前事件数组:', this.eventsData.list.map(e => e.title));
-
         this.addOrUpdateEvent(newEvent);
-
-        console.log('添加后事件数组:', this.eventsData.list.map(e => e.title));
+        router.replaceUrl({ url: 'pages/Index' });
+      }
+      catch (error) {
+        console.error('解析事件数据失败:', error);
+      }
+    }
+    else if (params && params.action === 'delete' && params.event) {
+      try {
+        const deleteEvent = JSON.parse(params.event) as CalendarEvent;
+        console.log('准备删除事件:', deleteEvent.title);
+        this.deleteEvent(deleteEvent);
         router.replaceUrl({ url: 'pages/Index' });
       } catch (error) {
-        console.error('解析事件数据失败:', error);
+        console.error('解析删除事件数据失败:', error);
       }
     }
   }
@@ -161,18 +163,27 @@ struct Index {
   //   evt._timerId = timerHandle;
   // }
 
-  private addOrUpdateEvent(event: CalendarEvent) {
-    console.log('=== addOrUpdateEvent 开始 ===');
-    console.log('添加前数组长度:', this.eventsData.list.length);
-    console.log('添加前数组内容:', this.eventsData.list.map(e => `${e.id}:${e.title}`));
+  // 新增删除事件方法
+  private deleteEvent(event: CalendarEvent) {
+    // 从数组中移除事件
+    const updatedList = this.eventsData.list.filter(e => e.id !== event.id);
+    this.eventsData = { list: updatedList };
 
+    // 取消提醒定时器
+    if (event._timerId) {
+      clearTimeout(event._timerId);
+    }
+
+    promptAction.showToast({ message: '删除成功', duration: 1500 });
+  }
+
+  private addOrUpdateEvent(event: CalendarEvent) {
     let newList: CalendarEvent[];
 
     if (event.id && event.id > 0) {
-      console.log('🔄 更新模式');
       newList = this.eventsData.list.map(e => e.id === event.id ? event : e);
-    } else {
-      console.log('➕ 添加模式');
+    }
+    else {
       const newId = this.nextEventId++;
       const newEvent: CalendarEvent = {
         id: newId,
@@ -184,16 +195,11 @@ struct Index {
         notes: event.notes,
         _timerId: undefined
       };
-
-      console.log('创建新事件:', newEvent);
       newList = [...this.eventsData.list, newEvent]; // 这里应该是添加，不是覆盖
-      console.log('添加后数组长度:', newList.length);
-
       this.scheduleReminder(newEvent);
     }
 
     this.eventsData = { list: newList };
-    console.log('最终数组:', this.eventsData.list.map(e => `${e.id}:${e.title}`));
   }
 
   private scheduleReminder(evt: CalendarEvent) {

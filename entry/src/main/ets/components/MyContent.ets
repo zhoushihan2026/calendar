@@ -14,7 +14,6 @@ export struct MyContent {
   // @Link events: CalendarEvent[];
   @Link eventsData: EventsData;
 
-
   aboutToAppear() {
     console.log('=== MyContent 事件详情 ===');
     console.log('事件数量:', this.eventsData.list.length);
@@ -137,26 +136,26 @@ export struct MyContent {
   }
   // 提供事件删除功能（带确认弹框）
   private deleteEvent(evt: CalendarEvent) {
-    // 显示确认弹框
     promptAction.showDialog({
       title: '确认删除',
       message: `确定要删除日程"${evt.title}"吗？`,
       buttons: [
-        {
-          text: '取消',
-          color: '#000000'
-        },
-        {
-          text: '删除',
-          color: '#FF0000'
-        }
+        { text: '取消', color: '#000000' },
+        { text: '删除', color: '#FF0000' }
       ]
     }).then(result => {
-      if (result.index === 1) { // 点击了"删除"按钮
-        // 这里需要实现实际的删除逻辑
-        // 可以通过自定义事件或回调通知父组件
-        console.log('删除事件:', evt);
+      if (result.index === 1) {
+        // 实际删除逻辑 - 通知父组件
+        const updatedList = this.eventsData.list.filter(e => e.id !== evt.id);
+        this.eventsData = { list: updatedList };
+
+        // 取消提醒定时器
+        if (evt._timerId) {
+          clearTimeout(evt._timerId);
+        }
+
         promptAction.showToast({ message: '已删除日程', duration: 1500 });
+        console.log('删除事件成功:', evt.title);
       }
     });
   }
@@ -168,32 +167,39 @@ export struct MyContent {
       Text('暂无日程').opacity(0.6).padding(12);
     } else {
       ForEach(events, (evt: CalendarEvent) => {
-        Row() {
-          Column() {
-            Text(evt.title).fontSize(16).fontWeight(FontWeight.Medium);
-            Text(`${evt.startTime} - ${evt.endTime}`).fontSize(12).opacity(0.8);
-          }.alignItems(HorizontalAlign.Start).layoutWeight(1);
-          Button('编辑').onClick(() => this.navigateToEditEvent(evt)).margin({ right: 6 });
-          Button('删除').onClick(() => this.deleteEvent(evt));
+        Column() {
+          Row() {
+            Column() {
+              Text(evt.dateKey).fontSize(12).opacity(0.6);
+              Text(evt.title).fontSize(16).fontWeight(FontWeight.Medium);
+              Text(`${evt.startTime} - ${evt.endTime}`).fontSize(12).opacity(0.8);
+            }.alignItems(HorizontalAlign.Start).layoutWeight(1);
+          }
+          if (evt.notes && evt.notes.length > 0) {
+            Text(evt.notes).fontSize(12).opacity(0.9).margin({ top: 4 }).alignSelf(ItemAlign.Start);
+          }
         }
-        .padding(10)
+        .padding(12)
         .margin({ left: 12, right: 12, bottom: 8 })
         .backgroundColor('#f7f7f7')
-        .borderRadius(8);
+        .borderRadius(8)
+        .onClick(() => {
+          this.navigateToEditEvent(evt);
+        });
       }, (evt: CalendarEvent) => evt.id.toString());
     }
   }
   // 在月视图的日期单元格中，有事件时显示小圆点
-  @Builder
-  renderExtraIndicator(totalCount: number) {
-    if (totalCount > 0) {
-      // 有事件时显示小圆点
-      Text('•')
-        .fontSize(16)
-        .fontColor('#1890ff')
-        .margin({ top: 2 });
-    }
-  }
+  // @Builder
+  // renderExtraIndicator(totalCount: number) {
+  //   if (totalCount > 0) {
+  //     // 有事件时显示小圆点
+  //     Text('•')
+  //       .fontSize(16)
+  //       .fontColor('#1890ff')
+  //       .margin({ top: 2 });
+  //   }
+  // }
   @Builder
   renderMonthView() {
     Column() {
@@ -216,17 +222,17 @@ export struct MyContent {
               .textAlign(TextAlign.Center)
               .margin({ top: 6 })
               .opacity(d.getMonth() === this.monthViewDate.getMonth() ? 1 : 0.5)
-              .backgroundColor(this.isSameDay(d, new Date()) ? '#e6f4ff' : Color.Transparent)
+              .backgroundColor(this.isSameDay(d, new Date()) ? '#fffffde6' : Color.Transparent)
               .borderRadius(15)
               .width(30)
               .height(30)
             ForEach(this.getPreviewEvents(d), (e: CalendarEvent) => {
               Row() {
-                Text('•').fontColor('#1890ff');
-                Text(e.title).fontSize(12).lineHeight(14).maxLines(1);
+                Text('•').fontColor('#ffffe818');
+                // Text(e.title).fontSize(12).lineHeight(14).maxLines(1);
               }.margin({ top: 2 }).padding({ left: 4, right: 4 });
             }, (e: CalendarEvent) => e.id.toString());
-            this.renderExtraIndicator(this.eventsOn(d).length);
+            // this.renderExtraIndicator(this.eventsOn(d).length);
           }
           .width('14.28%')
           .height(64)
@@ -260,7 +266,7 @@ export struct MyContent {
           }
           .width('14.28%')
           .padding(4)
-          .backgroundColor(this.isSameDay(this.getWeekDates(this.selectedDate)[index], this.selectedDate) ? '#e6f7ff' : Color.Transparent)
+          .backgroundColor(this.isSameDay(this.getWeekDates(this.selectedDate)[index], this.selectedDate) ? '#fffffde6' : Color.Transparent)
           .borderRadius(6)
           .onClick(() => {
             this.selectedDate = new Date(this.getWeekDates(this.selectedDate)[index]);
@@ -279,25 +285,14 @@ export struct MyContent {
               Column() {
                 ForEach(this.eventsOn(date), (evt: CalendarEvent) => {
                   Column() {
-                    Text(evt.title).fontSize(12).maxLines(1);
+                    Text(evt.title).fontSize(12).maxLines(1).fontWeight(FontWeight.Medium);
                     Text(`${evt.startTime}-${evt.endTime}`).fontSize(10).opacity(0.7);
-                    // 在周视图的事件块中添加编辑删除按钮
-                    Row() {
-                      Button('编辑')
-                        .fontSize(8)
-                        .onClick(() => this.navigateToEditEvent(evt))
-                        .margin({ right: 4 });
-                      Button('删除')
-                        .fontSize(8)
-                        .onClick(() => this.deleteEvent(evt));
-                    }
-                    .margin({ top: 2 })
-                    .justifyContent(FlexAlign.Center);
                   }
-                  .padding(4)
-                  .backgroundColor('#e6f7ff')
+                  .padding(6)
+                  .backgroundColor('#fffffccb')
                   .borderRadius(4)
                   .margin({ bottom: 4 })
+                  .width('100%')
                   .onClick(() => this.navigateToEditEvent(evt));
                 }, (evt: CalendarEvent) => evt.id.toString());
                 if (this.eventsOn(date).length === 0) {
@@ -308,7 +303,7 @@ export struct MyContent {
           }
           .width('14.28%')
           .padding(6)
-          .backgroundColor(this.isSameDay(date, this.selectedDate) ? '#f0f8ff' : '#f9f9f9')
+          .backgroundColor(this.isSameDay(date, this.selectedDate) ? '#fffffde6' : '#f9f9f9')
           .borderRadius(8)
         }, (date: Date, index?: number) => this.formatDateKey(date) + index)
       }
@@ -327,18 +322,23 @@ export struct MyContent {
       } else {
         ForEach(this.eventsOn(this.selectedDate), (evt: CalendarEvent) => {
           Column() {
-            Text(evt.title).fontSize(16).fontWeight(FontWeight.Medium);
-            Text(`${evt.startTime} - ${evt.endTime}`).fontSize(12).opacity(0.8);
-            if (evt.notes && evt.notes.length > 0) {
-              Text(evt.notes).fontSize(12).opacity(0.9).margin({ top: 4 });
-            }
             Row() {
-              Button('编辑').onClick(() => this.navigateToEditEvent(evt)).margin({ right: 8 });
-              Button('删除').onClick(() => this.deleteEvent(evt));
-            }.margin({ top: 6 });
+              Column() {
+                Text(evt.dateKey).fontSize(12).opacity(0.6);
+                Text(evt.title).fontSize(16).fontWeight(FontWeight.Medium);
+                Text(`${evt.startTime} - ${evt.endTime}`).fontSize(12).opacity(0.8);
+              }.alignItems(HorizontalAlign.Start).layoutWeight(1);
+              Row() {
+                Button('编辑').onClick(() => this.navigateToEditEvent(evt)).margin({ right: 6 }).backgroundColor("#ffeccc2f");
+                Button('删除').onClick(() => this.deleteEvent(evt)).backgroundColor("#FF6B6B");
+              }.margin({top:15})
+            }
+            if (evt.notes && evt.notes.length > 0) {
+              Text(evt.notes).fontSize(12).opacity(0.9).margin({ top: 4 }).alignSelf(ItemAlign.Start);
+            }
           }
           .padding(12)
-          .margin({ left: 12, right: 12, bottom: 10 })
+          .margin({ left: 12, right: 12, bottom: 8 })
           .backgroundColor('#f7f7f7')
           .borderRadius(8);
         }, (evt: CalendarEvent) => evt.id.toString());
@@ -364,8 +364,8 @@ export struct MyContent {
                   Text(`${evt.startTime} - ${evt.endTime}`).fontSize(12).opacity(0.8);
                 }.alignItems(HorizontalAlign.Start).layoutWeight(1);
                 Row() {
-                  Button('编辑').onClick(() => this.navigateToEditEvent(evt)).margin({ right: 6 }).backgroundColor("#FFE9B22E");
-                  Button('删除').onClick(() => this.deleteEvent(evt)).backgroundColor("#FFE9B22E");
+                  Button('编辑').onClick(() => this.navigateToEditEvent(evt)).margin({ right: 6 }).backgroundColor("#ffeccc2f");
+                  Button('删除').onClick(() => this.deleteEvent(evt)).backgroundColor("#FF6B6B");
                 }.margin({top:15})
               }
               if (evt.notes && evt.notes.length > 0) {

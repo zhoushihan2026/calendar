@@ -17,7 +17,7 @@ export struct MyFooter {
   build() {
     Button('+')
       .type(ButtonType.Circle)
-      .backgroundColor('#ffe9b22e')
+      .backgroundColor('#ffeccc2f')
       .fontColor(Color.White)
       .fontSize(25)
       .position({ x: '300.00vp', y: '680.00vp' })

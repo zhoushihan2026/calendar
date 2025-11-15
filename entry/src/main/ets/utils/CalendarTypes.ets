@@ -22,7 +22,7 @@ export interface TimePickerResult {
 }
 
 export interface RouterParams {
-  action?: string;
+  action?: 'save' | 'delete';
   event?: string;
 }
 

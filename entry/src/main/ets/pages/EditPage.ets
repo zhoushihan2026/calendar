@@ -87,6 +87,7 @@ export struct EditPage {
     Column() {
       EditHeader({
         isNewEvent: this.isNewEvent,
+        editingEvent: this.editingEvent,
         formTitle: $formTitle,
         formDate: $formDate,
         formStartMinutes: $formStartMinutes,
