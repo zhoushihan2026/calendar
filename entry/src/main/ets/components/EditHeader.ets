@@ -5,7 +5,7 @@ import { CalendarEvent } from '../utils/CalendarTypes';
 @Component
 export struct EditHeader {
   @Prop isNewEvent: boolean = true;
-  @Prop editingEvent?: CalendarEvent; // 接收原事件信息
+  @Prop editingEvent?: CalendarEvent;
   @Link formTitle: string;
   @Link formDate: Date;
   @Link formStartMinutes: number;
@@ -16,59 +16,18 @@ export struct EditHeader {
   private handleCancel() {
     router.back();
   }
-  // private handleSave() {
-  //   // 验证表单数据
-  //   if (!this.formTitle || this.formEndMinutes <= this.formStartMinutes) {
-  //     promptAction.showToast({ message: '请检查标题与时间范围', duration: 2000 });
-  //     return;
-  //   }
-  //
-  //   // 格式化数据
-  //   const dateKey = this.formatDateKey(this.formDate);
-  //   const startTime = this.minutesToTime(this.formStartMinutes);
-  //   const endTime = this.minutesToTime(this.formEndMinutes);
-  //
-  //   // 创建事件对象
-  //   const eventData: CalendarEvent = {
-  //     id: this.isNewEvent ? 0 : 0, // 实际ID在Index页面处理
-  //     title: this.formTitle,
-  //     dateKey: dateKey,
-  //     startTime: startTime,
-  //     endTime: endTime,
-  //     reminderMinutes: this.formReminderMinutes,
-  //     notes: this.formNotes
-  //   };
-  //
-  //   // 显示保存成功提示
-  //   promptAction.showToast({
-  //     message: this.isNewEvent ? '创建成功' : '更新成功',
-  //     duration: 1500
-  //   });
-  //
-  //   // 返回数据到主页面
-  //   router.back({
-  //     url: 'pages/Index',
-  //     params: {
-  //       action: 'save',
-  //       event: JSON.stringify(eventData)
-  //     }
-  //   });
-  // }
   private handleSave() {
     // 验证表单数据
     if (!this.formTitle || this.formEndMinutes <= this.formStartMinutes) {
       promptAction.showToast({ message: '请检查标题与时间范围', duration: 2000 });
       return;
     }
-
     // 格式化数据
     const dateKey = this.formatDateKey(this.formDate);
     const startTime = this.minutesToTime(this.formStartMinutes);
     const endTime = this.minutesToTime(this.formEndMinutes);
-
     // 创建事件对象
     const eventData: CalendarEvent = {
-      // id: this.isNewEvent ? 0 : 0, // 实际ID在Index页面处理
       id: this.isNewEvent ? 0 : (this.editingEvent?.id || 0), // 编辑模式使用原ID
       title: this.formTitle,
       dateKey: dateKey,
@@ -77,13 +36,11 @@ export struct EditHeader {
       reminderMinutes: this.formReminderMinutes,
       notes: this.formNotes
     };
-
     // 显示保存成功提示
     promptAction.showToast({
       message: this.isNewEvent ? '创建成功' : '更新成功',
       duration: 1500
     });
-
     // 返回数据到主页面
     router.back({
       url: 'pages/Index',
@@ -93,13 +50,11 @@ export struct EditHeader {
       }
     });
   }
-  // 删除事件方法
   private handleDelete() {
     if (!this.editingEvent) {
       promptAction.showToast({ message: '无法删除，事件信息错误', duration: 2000 });
       return;
     }
-
     promptAction.showDialog({
       title: '确认删除',
       message: `确定要删除日程"${this.editingEvent.title}"吗？`,
@@ -117,19 +72,18 @@ export struct EditHeader {
             event: JSON.stringify(this.editingEvent)
           }
         });
-
         promptAction.showToast({ message: '删除成功', duration: 1500 });
       }
     });
   }
-  // 将 Date 对象转换为 "YYYY-MM-DD" 格式
+  // 工具 - 将 Date 对象转换为 "YYYY-MM-DD" 格式
   private formatDateKey(d: Date): string {
     const y = d.getFullYear();
     const m = (d.getMonth() + 1).toString().padStart(2, '0');
     const day = d.getDate().toString().padStart(2, '0');
     return `${y}-${m}-${day}`;
   }
-  // 将分钟数转换为 "HH:MM" 格式
+  // 工具 -将分钟数转换为 "HH:MM" 格式
   private minutesToTime(minutes: number): string {
     const h = Math.floor(minutes / 60);
     const m = minutes % 60;

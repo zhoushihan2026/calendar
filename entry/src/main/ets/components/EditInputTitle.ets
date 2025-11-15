@@ -15,13 +15,11 @@ export struct EditInputTitle {
         .alignSelf(ItemAlign.Start)
         .backgroundColor('#fff8f8f8')
         .borderRadius(8)
-        .width(50)
-        .padding(5)
-        .height(30)
+        .padding(8)
         .textAlign(TextAlign.Center)
         .shadow({
           radius: 8,
-          color: '#1A1A1A08',  // 轻微阴影
+          color: '#1A1A1A08',
           offsetX: 0,
           offsetY: 2
         })

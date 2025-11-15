@@ -4,19 +4,22 @@ export struct MyHeader {
   @Link selectedDate: Date;
   @Link monthViewDate: Date;
 
-  // 按钮逻辑
+  // 按钮逻辑 - 切换月周日
   private handlePrevClick() {
+    // 月视图
     if (this.currentTabIndex === 0) {
       const d = new Date(this.monthViewDate);
       d.setMonth(d.getMonth() - 1);
       this.monthViewDate = d;
     }
+    // 周视图
     else if (this.currentTabIndex === 1) {
       const d = new Date(this.selectedDate);
       d.setDate(d.getDate() - 7);
       this.selectedDate = d;
       this.monthViewDate = new Date(d);
     }
+    // 日视图
     else {
       const d = new Date(this.selectedDate);
       d.setDate(d.getDate() - 1);
@@ -25,16 +28,21 @@ export struct MyHeader {
     }
   }
   private handleNextClick() {
+    // 月视图
     if (this.currentTabIndex === 0) {
       const d = new Date(this.monthViewDate);
       d.setMonth(d.getMonth() + 1);
       this.monthViewDate = d;
-    } else if (this.currentTabIndex === 1) {
+    }
+    // 周视图
+    else if (this.currentTabIndex === 1) {
       const d = new Date(this.selectedDate);
       d.setDate(d.getDate() + 7);
       this.selectedDate = d;
       this.monthViewDate = new Date(d);
-    } else {
+    }
+    // 日视图
+    else {
       const d = new Date(this.selectedDate);
       d.setDate(d.getDate() + 1);
       this.selectedDate = d;

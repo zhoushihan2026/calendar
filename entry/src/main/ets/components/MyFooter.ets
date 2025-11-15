@@ -21,8 +21,6 @@ export struct MyFooter {
       .fontColor(Color.White)
       .fontSize(25)
       .position({ x: '300.00vp', y: '680.00vp' })
-      .onClick(() => {
-        this.handleAddClick();
-      })
+      .onClick(() => {this.handleAddClick();})
   }
 }

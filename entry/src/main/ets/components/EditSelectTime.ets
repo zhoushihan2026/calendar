@@ -4,11 +4,17 @@ export struct EditSelectTime {
   @Link formEndMinutes: number;
   @Prop formDate: Date;
 
+  private minutesToDate(minutes: number): Date {
+    const date = new Date(this.formDate);
+    const hour = Math.floor(minutes / 60);
+    const minute = minutes % 60;
+    date.setHours(hour, minute, 0, 0);
+    return date;
+  }
   private handleStartTimeChange(value: TimePickerResult) {
     const minutes = value.hour * 60 + value.minute;
     this.formStartMinutes = minutes;
   }
-
   private handleEndTimeChange(value: TimePickerResult) {
     const minutes = value.hour * 60 + value.minute;
     this.formEndMinutes = minutes;
@@ -22,13 +28,11 @@ export struct EditSelectTime {
         .alignSelf(ItemAlign.Start)
         .backgroundColor('#fff8f8f8')
         .borderRadius(8)
-        .width(50)
-        .padding(5)
-        .height(30)
+        .padding(8)
         .textAlign(TextAlign.Center)
         .shadow({
           radius: 8,
-          color: '#1A1A1A08',  // 轻微阴影
+          color: '#1A1A1A08',
           offsetX: 0,
           offsetY: 2
         })
@@ -39,7 +43,9 @@ export struct EditSelectTime {
             .fontSize(14)
             .opacity(0.8)
             .margin({ bottom: 8 });
-          TimePicker()
+          TimePicker({
+            selected: this.minutesToDate(this.formStartMinutes)
+          })
             .useMilitaryTime(true)
             .onChange((value: TimePickerResult) => {
               this.handleStartTimeChange(value);
@@ -51,7 +57,9 @@ export struct EditSelectTime {
             .fontSize(14)
             .opacity(0.8)
             .margin({ bottom: 8 });
-          TimePicker()
+          TimePicker({
+            selected: this.minutesToDate(this.formEndMinutes)
+          })
             .useMilitaryTime(true)
             .onChange((value: TimePickerResult) => {
               this.handleEndTimeChange(value);

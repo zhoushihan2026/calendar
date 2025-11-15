@@ -1,28 +1,15 @@
-import { CalendarEvent} from '../utils/CalendarTypes';
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
-
-interface EventsData {
-  list: CalendarEvent[];
-}
+import { CalendarEvent , EventsData} from '../utils/CalendarTypes';
 
 @Component
 export struct MyContent {
   @Link currentTabIndex: number;
   @Link selectedDate: Date;
   @Link monthViewDate: Date;
-  // @Link events: CalendarEvent[];
   @Link eventsData: EventsData;
 
-  aboutToAppear() {
-    console.log('=== MyContent 事件详情 ===');
-    console.log('事件数量:', this.eventsData.list.length);
-
-    this.eventsData.list.forEach((event, index) => {
-      console.log(`事件${index}: ID=${event.id}, 标题=${event.title}, 日期=${event.dateKey}`);
-    });
-  }
-
+  // 设置标题
   private dayTitle(): string {
     const d = this.selectedDate;
     return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
@@ -52,60 +39,68 @@ export struct MyContent {
       default: return '';
     }
   }
-  // 比较两个日期是否是同一天
+  // 工具 -生成完整的月历网格
+  private getMonthGridDates(viewDate: Date): Date[] {
+    const firstOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+    const startDay = firstOfMonth.getDay();
+    const startDate = new Date(firstOfMonth);
+    startDate.setDate(firstOfMonth.getDate() - startDay);
+    // 生成42个连续的日期
+    const result: Date[] = [];
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(startDate);
+      d.setDate(startDate.getDate() + i);
+      result.push(d);
+    }
+    return result;
+  }
+  // 工具 -比较两个日期是否是同一天
   private isSameDay(a: Date, b: Date): boolean {
     return a.getFullYear() === b.getFullYear() &&
       a.getMonth() === b.getMonth() &&
       a.getDate() === b.getDate();
   }
-  // 将Date对象格式化为"YYYY-MM-DD"字符串
+  // 工具 -月视图日期单元格中显示事件预览
+  private getPreviewEvents(date: Date): CalendarEvent[] {
+    const events = this.eventsOn(date);
+    return events.length > 0 ? [events[0]] : [];  // 只返回第一个事件或空数组
+  }
+  // 工具 -获取指定日期的所有事件并按开始时间升序排序
+  private eventsOn(date: Date): CalendarEvent[] {
+    const k = this.formatDateKey(date);
+    return this.eventsData.list.filter(e => e.dateKey === k)
+      .sort((a, b) => this.parseTimeToMinutes(a.startTime) - this.parseTimeToMinutes(b.startTime));
+  }
+  // 工具 -将Date对象格式化为"YYYY-MM-DD"字符串
   private formatDateKey(d: Date): string {
     const y = d.getFullYear();
     const m = (d.getMonth() + 1).toString().padStart(2, '0');
     const day = d.getDate().toString().padStart(2, '0');
     return `${y}-${m}-${day}`;
   }
-  // 将"HH:MM"时间字符串转换为分钟数
+  // 工具 -将"HH:MM"时间字符串转换为分钟数
   private parseTimeToMinutes(time: string): number {
     const parts = time.split(':');
     const h = parseInt(parts[0]);
     const m = parseInt(parts[1]);
     return h * 60 + m;
   }
-  // 获取指定日期的所有事件并按开始时间排序
-  private eventsOn(date: Date): CalendarEvent[] {
-    const k = this.formatDateKey(date);
-    return this.eventsData.list.filter(e => e.dateKey === k)
-      .sort((a, b) => this.parseTimeToMinutes(a.startTime) - this.parseTimeToMinutes(b.startTime));
+  // 工具 -明确标识选中日期的日程列表的标题时间
+  private selectedDateHeading(): string {
+    const d = this.selectedDate;
+    return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')} 日程`;
   }
-  // 月视图日期单元格中显示事件预览
-  private getPreviewEvents(date: Date): CalendarEvent[] {
-    const events = this.eventsOn(date);
-    return events.length > 0 ? [events[0]] : [];  // 只返回第一个事件或空数组
-  }
-  // 所有日程视图的完整列表
-  private getAllEvents(): CalendarEvent[] {
-    return this.eventsData.list.sort((a, b) => {
-      const dateCompare = a.dateKey.localeCompare(b.dateKey);
-      if (dateCompare !== 0) return dateCompare;
-      return this.parseTimeToMinutes(a.startTime) - this.parseTimeToMinutes(b.startTime);
+  // 工具 -提供事件编辑入口
+  private navigateToEditEvent(evt: CalendarEvent) {
+    router.pushUrl({
+      url: 'pages/EditPage',
+      params: {
+        mode: 'edit',
+        event: JSON.stringify(evt)
+      }
     });
   }
-  // 生成完整的月历网格
-  private getMonthGridDates(viewDate: Date): Date[] {
-  const firstOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
-  const startDay = firstOfMonth.getDay();
-  const startDate = new Date(firstOfMonth);
-  startDate.setDate(firstOfMonth.getDate() - startDay);
-  const result: Date[] = [];
-  for (let i = 0; i < 42; i++) {
-    const d = new Date(startDate);
-    d.setDate(startDate.getDate() + i);
-    result.push(d);
-  }
-  return result;
-}
-  // 生成一周的日期范围
+  // 工具 -生成一周的日期范围
   private getWeekDates(centerDate: Date): Date[] {
     const start = new Date(centerDate);
     const dayOfWeek = start.getDay();
@@ -119,22 +114,7 @@ export struct MyContent {
     }
     return weekDates;
   }
-  // 明确标识选中日期的日程区域
-  private selectedDateHeading(): string {
-    const d = this.selectedDate;
-    return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')} 日程`;
-  }
-  // 提供事件编辑入口
-  private navigateToEditEvent(evt: CalendarEvent) {
-    router.pushUrl({
-      url: 'pages/EditPage',
-      params: {
-        mode: 'edit',
-        event: JSON.stringify(evt)
-      }
-    });
-  }
-  // 提供事件删除功能（带确认弹框）
+  // 工具 -提供事件删除功能（带确认弹框）
   private deleteEvent(evt: CalendarEvent) {
     promptAction.showDialog({
       title: '确认删除',
@@ -148,214 +128,204 @@ export struct MyContent {
         // 实际删除逻辑 - 通知父组件
         const updatedList = this.eventsData.list.filter(e => e.id !== evt.id);
         this.eventsData = { list: updatedList };
-
         // 取消提醒定时器
         if (evt._timerId) {
           clearTimeout(evt._timerId);
         }
-
         promptAction.showToast({ message: '已删除日程', duration: 1500 });
-        console.log('删除事件成功:', evt.title);
       }
     });
   }
-
-  // 在月视图底部显示选中日期的详细事件列表
-  @Builder
-  renderSelectedDayEventsList(events: CalendarEvent[]) {
-    if (events.length === 0) {
-      Text('暂无日程').opacity(0.6).padding(12);
-    } else {
-      ForEach(events, (evt: CalendarEvent) => {
-        Column() {
-          Row() {
-            Column() {
-              Text(evt.dateKey).fontSize(12).opacity(0.6);
-              Text(evt.title).fontSize(16).fontWeight(FontWeight.Medium);
-              Text(`${evt.startTime} - ${evt.endTime}`).fontSize(12).opacity(0.8);
-            }.alignItems(HorizontalAlign.Start).layoutWeight(1);
-          }
-          if (evt.notes && evt.notes.length > 0) {
-            Text(evt.notes).fontSize(12).opacity(0.9).margin({ top: 4 }).alignSelf(ItemAlign.Start);
-          }
-        }
-        .padding(12)
-        .margin({ left: 12, right: 12, bottom: 8 })
-        .backgroundColor('#f7f7f7')
-        .borderRadius(8)
-        .onClick(() => {
-          this.navigateToEditEvent(evt);
-        });
-      }, (evt: CalendarEvent) => evt.id.toString());
-    }
+  // 工具 -所有日程视图的完整列表
+  private getAllEvents(): CalendarEvent[] {
+    return this.eventsData.list.sort((a, b) => {
+      const dateCompare = a.dateKey.localeCompare(b.dateKey);
+      if (dateCompare !== 0) return dateCompare;
+      return this.parseTimeToMinutes(a.startTime) - this.parseTimeToMinutes(b.startTime);
+    });
   }
-  // 在月视图的日期单元格中，有事件时显示小圆点
-  // @Builder
-  // renderExtraIndicator(totalCount: number) {
-  //   if (totalCount > 0) {
-  //     // 有事件时显示小圆点
-  //     Text('•')
-  //       .fontSize(16)
-  //       .fontColor('#1890ff')
-  //       .margin({ top: 2 });
-  //   }
-  // }
+
   @Builder
   renderMonthView() {
-    Column() {
-      // Weekday header
-      Row() {
-        ForEach(['日', '一', '二', '三', '四', '五', '六'], (wd: string) => {
-          Text(wd).width('14.28%').textAlign(TextAlign.Center).fontSize(14).opacity(0.7)
-        }, (wd: string) => wd)
-      }
-      .width('100%')
-      .padding({ left: 8, right: 8, bottom: 6 })
+    List() {
+      ListItem() {
+        Column() {
+          // 星期标题行
+          Row() {
+            ForEach(['日', '一', '二', '三', '四', '五', '六'], (wd: string) => {
+              Text(wd).width('14.28%').textAlign(TextAlign.Center).fontSize(14).opacity(0.7)
+            },(wd: string) => wd)
+          }.width('100%').padding({ left: 8, right: 8, bottom: 8 ,top:5})
 
-      // Grid 6x7
-      Flex({ wrap: FlexWrap.Wrap }) {
-        ForEach(this.getMonthGridDates(this.monthViewDate), (d: Date) => {
+          // 日历网格
+          Flex({ wrap: FlexWrap.Wrap }) {
+            ForEach(this.getMonthGridDates(this.monthViewDate), (d: Date) => {
+              Column() {
+                Text(d.getDate().toString())
+                  .fontSize(16)
+                  .fontWeight(this.isSameDay(d, this.selectedDate) ? FontWeight.Bold : FontWeight.Normal)
+                  .textAlign(TextAlign.Center)
+                  .margin({ top: 6 })
+                  .opacity(d.getMonth() === this.monthViewDate.getMonth() ? 1 : 0.5)
+                  .backgroundColor(this.isSameDay(d, new Date()) ? '#fffdfbdb' : Color.Transparent)
+                  .borderRadius(15)
+                  .width(30)
+                  .height(30)
+                ForEach(this.getPreviewEvents(d), (e: CalendarEvent) => {
+                  Row() {
+                    Text('•').fontColor('#fff1dc1e').fontSize(20);
+                  }.padding({ left: 4, right: 4 });
+                }, (e: CalendarEvent) => e.id.toString());
+              }
+              .width('14.28%')
+              .height(55)
+              .padding({ left: 4, right: 4 })
+              .onClick(() => {this.selectedDate = new Date(d);});
+            }, (d: Date) => this.formatDateKey(d));
+          }.width('100%').padding({ left: 6, right: 6, bottom: 8 })
+
+          // 选中日期的日程列表
           Column() {
-            Text(d.getDate().toString())
+            Text(this.selectedDateHeading())
               .fontSize(16)
-              .fontWeight(this.isSameDay(d, this.selectedDate) ? FontWeight.Bold : FontWeight.Normal)
+              .fontWeight(FontWeight.Medium)
+              .backgroundColor('#fff3f3f3')
+              .borderRadius(8)
+              .padding({top:8,bottom:8,left:12,right:12})
               .textAlign(TextAlign.Center)
-              .margin({ top: 6 })
-              .opacity(d.getMonth() === this.monthViewDate.getMonth() ? 1 : 0.5)
-              .backgroundColor(this.isSameDay(d, new Date()) ? '#fffffde6' : Color.Transparent)
-              .borderRadius(15)
-              .width(30)
-              .height(30)
-            ForEach(this.getPreviewEvents(d), (e: CalendarEvent) => {
-              Row() {
-                Text('•').fontColor('#ffffe818');
-                // Text(e.title).fontSize(12).lineHeight(14).maxLines(1);
-              }.margin({ top: 2 }).padding({ left: 4, right: 4 });
-            }, (e: CalendarEvent) => e.id.toString());
-            // this.renderExtraIndicator(this.eventsOn(d).length);
-          }
-          .width('14.28%')
-          .height(64)
-          .padding({ left: 4, right: 4 })
-          .onClick(() => {
-            this.selectedDate = new Date(d);
-          });
-        }, (d: Date) => this.formatDateKey(d));
-      }
-      .width('100%')
-      .padding({ left: 6, right: 6, bottom: 8 })
+              .margin({bottom:10})
 
-      Column() {
-        Text(this.selectedDateHeading())
-          .fontSize(16)
-          .fontWeight(FontWeight.Medium)
-          .padding({ left: 12, top: 8, bottom: 6 });
-        this.renderSelectedDayEventsList(this.eventsOn(this.selectedDate));
+            if (this.eventsOn(this.selectedDate).length === 0) {
+              Text('暂无日程').opacity(0.6).padding(12);
+            }
+            else {
+              ForEach(this.eventsOn(this.selectedDate), (evt: CalendarEvent) => {
+                Column() {
+                  Row() {
+                    Column() {
+                      Text(evt.dateKey).fontSize(12).opacity(0.6);
+                      Text(evt.title).fontSize(16).fontWeight(FontWeight.Medium).margin(2);
+                      Text(`${evt.startTime} - ${evt.endTime}`).fontSize(12).opacity(0.8);
+                    }.alignItems(HorizontalAlign.Start).layoutWeight(1);
+                  }
+                  if (evt.notes && evt.notes.length > 0) {
+                    Text(evt.notes).fontSize(12).opacity(0.9).margin({ top: 4 }).alignSelf(ItemAlign.Start);
+                  }
+                }
+                .width('100%')
+                .padding(12)
+                .margin({ left: 12, right: 12, bottom: 8 })
+                .backgroundColor('#f7f7f7')
+                .borderRadius(8)
+                .onClick(() => {this.navigateToEditEvent(evt);});
+              }, (evt: CalendarEvent) => evt.id.toString());
+            }
+          }.margin(10)
+        }
       }
     }
+    .width('100%')
+    .height('100%')
+    .alignListItem(ListItemAlign.Start)
   }
   @Builder
   renderWeekView() {
-    Column() {
-      // 周视图表头
-      Row() {
-        ForEach(['日', '一', '二', '三', '四', '五', '六'], (wd: string, index: number) => {
-          Column() {
-            Text(wd).fontSize(14).opacity(0.7).margin({ bottom: 4 });
-            Text(`${this.getWeekDates(this.selectedDate)[index].getMonth() + 1}/${this.getWeekDates(this.selectedDate)[index].getDate()}`).fontSize(12).opacity(0.8);
-          }
-          .width('14.28%')
-          .padding(4)
-          .backgroundColor(this.isSameDay(this.getWeekDates(this.selectedDate)[index], this.selectedDate) ? '#fffffde6' : Color.Transparent)
-          .borderRadius(6)
-          .onClick(() => {
-            this.selectedDate = new Date(this.getWeekDates(this.selectedDate)[index]);
-          });
-        }, (wd: string, index?: number) => wd + index)
-      }
-      .width('100%')
-      .padding({ left: 8, right: 8, bottom: 12 })
-
-      // 周视图内容
-      Row() {
-        ForEach(this.getWeekDates(this.selectedDate), (date: Date, index?: number) => {
-          Column() {
-            Text(`${date.getDate()}`).fontSize(16).fontWeight(FontWeight.Medium).margin({ bottom: 8 });
-            Scroll() {
+    List() {
+      ListItem() {
+        Column() {
+          // 周视图表头
+          Row() {
+            ForEach(['日', '一', '二', '三', '四', '五', '六'], (wd: string, index: number) => {
               Column() {
-                ForEach(this.eventsOn(date), (evt: CalendarEvent) => {
-                  Column() {
-                    Text(evt.title).fontSize(12).maxLines(1).fontWeight(FontWeight.Medium);
-                    Text(`${evt.startTime}-${evt.endTime}`).fontSize(10).opacity(0.7);
-                  }
-                  .padding(6)
-                  .backgroundColor('#fffffccb')
-                  .borderRadius(4)
-                  .margin({ bottom: 4 })
-                  .width('100%')
-                  .onClick(() => this.navigateToEditEvent(evt));
-                }, (evt: CalendarEvent) => evt.id.toString());
-                if (this.eventsOn(date).length === 0) {
-                  Text('无日程').fontSize(10).opacity(0.5).margin({ top: 20 });
-                }
+                Text(wd).fontSize(14).opacity(0.7).margin({ bottom: 4 });
+                Text(`${this.getWeekDates(this.selectedDate)[index].getMonth() + 1}/${this.getWeekDates(this.selectedDate)[index].getDate()}`).fontSize(12).opacity(0.8);
               }
-            }.height(120)
+              .width('14.28%')
+              .padding(4)
+              .backgroundColor(this.isSameDay(this.getWeekDates(this.selectedDate)[index], this.selectedDate) ? '#fffffdec' : Color.Transparent)
+              .borderRadius(6)
+              .onClick(() => {this.selectedDate = new Date(this.getWeekDates(this.selectedDate)[index]);});
+            }, (wd: string, index?: number) => wd + index)
           }
-          .width('14.28%')
-          .padding(6)
-          .backgroundColor(this.isSameDay(date, this.selectedDate) ? '#fffffde6' : '#f9f9f9')
-          .borderRadius(8)
-        }, (date: Date, index?: number) => this.formatDateKey(date) + index)
+          .width('100%')
+          .padding({ left: 8, right: 8, bottom: 12 })
+
+          // 周视图内容
+          Row() {
+            ForEach(this.getWeekDates(this.selectedDate), (date: Date, index?: number) => {
+              Column() {
+                Text(`${date.getDate()}`).fontSize(16).fontWeight(FontWeight.Medium).margin({ bottom: 8 });
+                List() {
+                  if (this.eventsOn(date).length === 0) {
+                    ListItem() {
+                      Text('无日程')
+                        .fontSize(10)
+                        .opacity(0.5)
+                        .margin({ top: 20 })
+                        .width('100%')
+                        .textAlign(TextAlign.Center)
+                    }
+                  }
+                  else {
+                    ForEach(this.eventsOn(date), (evt: CalendarEvent) => {
+                      ListItem() {
+                        Column() {
+                          Text(evt.title)
+                            .fontSize(12)
+                            .maxLines(1)
+                            .fontWeight(FontWeight.Medium)
+                            .margin({bottom:2});
+                          Text(`${evt.startTime}-${evt.endTime}`)
+                            .fontSize(10)
+                            .opacity(0.7);
+                        }
+                        .padding(5)
+                        .backgroundColor('#fffff7c5')
+                        .borderRadius(4)
+                        .margin({ bottom: 4,top:4 })
+                        .width('100%')
+                        .onClick(() => this.navigateToEditEvent(evt))
+                      }
+                    }, (evt: CalendarEvent) => evt.id.toString());
+                  }
+                }
+                .width('100%')
+                .height(130)
+                .alignListItem(ListItemAlign.Start)
+              }
+              .width('14.28%')
+              .padding(6)
+              .backgroundColor(this.isSameDay(date, this.selectedDate) ? '#fffffdec' : '#f9f9f9')
+              .borderRadius(8)
+            }, (date: Date, index?: number) => this.formatDateKey(date) + index)
+          }
+          .width('100%')
+          .height(200)
+        }
+        .padding({right:12,left:12})
+        .width('100%')
+        .justifyContent(FlexAlign.Start)
       }
-      .width('100%')
-      .height(200)
     }
     .width('100%')
-    .padding(12)
+    .height('100%')
+    .alignListItem(ListItemAlign.Start)
   }
   @Builder
   renderDayView() {
-    Column() {
-      // 日视图的事件列表
+    List() {
       if (this.eventsOn(this.selectedDate).length === 0) {
-        Text('今天暂无安排').opacity(0.6).padding(12);
-      } else {
-        ForEach(this.eventsOn(this.selectedDate), (evt: CalendarEvent) => {
-          Column() {
-            Row() {
-              Column() {
-                Text(evt.dateKey).fontSize(12).opacity(0.6);
-                Text(evt.title).fontSize(16).fontWeight(FontWeight.Medium);
-                Text(`${evt.startTime} - ${evt.endTime}`).fontSize(12).opacity(0.8);
-              }.alignItems(HorizontalAlign.Start).layoutWeight(1);
-              Row() {
-                Button('编辑').onClick(() => this.navigateToEditEvent(evt)).margin({ right: 6 }).backgroundColor("#ffeccc2f");
-                Button('删除').onClick(() => this.deleteEvent(evt)).backgroundColor("#FF6B6B");
-              }.margin({top:15})
-            }
-            if (evt.notes && evt.notes.length > 0) {
-              Text(evt.notes).fontSize(12).opacity(0.9).margin({ top: 4 }).alignSelf(ItemAlign.Start);
-            }
-          }
-          .padding(12)
-          .margin({ left: 12, right: 12, bottom: 8 })
-          .backgroundColor('#f7f7f7')
-          .borderRadius(8);
-        }, (evt: CalendarEvent) => evt.id.toString());
+        ListItem() {
+          Text('今天暂无安排')
+            .opacity(0.6)
+            .margin({ top: 50 })
+            .width('100%')
+            .textAlign(TextAlign.Center)
+        }
       }
-    }
-  }
-  @Builder
-  renderAllEventsList() {
-    if (this.eventsData.list.length === 0) {
-      Column() {
-        Text('暂无日程').fontSize(16).opacity(0.6).margin({ top: 50 });
-        Text('点击右下角"+"按钮创建第一个日程').fontSize(12).opacity(0.4).margin({ top: 8 });
-      }.width('100%').alignItems(HorizontalAlign.Center);
-    } else {
-      Scroll() {
-        Column() {
-          ForEach(this.getAllEvents(), (evt: CalendarEvent) => {
+      else {
+        ForEach(this.eventsOn(this.selectedDate), (evt: CalendarEvent) => {
+          ListItem() {
             Column() {
               Row() {
                 Column() {
@@ -364,22 +334,94 @@ export struct MyContent {
                   Text(`${evt.startTime} - ${evt.endTime}`).fontSize(12).opacity(0.8);
                 }.alignItems(HorizontalAlign.Start).layoutWeight(1);
                 Row() {
-                  Button('编辑').onClick(() => this.navigateToEditEvent(evt)).margin({ right: 6 }).backgroundColor("#ffeccc2f");
-                  Button('删除').onClick(() => this.deleteEvent(evt)).backgroundColor("#FF6B6B");
+                  Button('编辑')
+                    .onClick(() => this.navigateToEditEvent(evt))
+                    .margin({ right: 6 })
+                    .backgroundColor("#ffeccc2f");
+                  Button('删除')
+                    .onClick(() => this.deleteEvent(evt))
+                    .backgroundColor("#FF6B6B");
                 }.margin({top:15})
               }
               if (evt.notes && evt.notes.length > 0) {
-                Text(evt.notes).fontSize(12).opacity(0.9).margin({ top: 4 }).alignSelf(ItemAlign.Start);
+                Text(evt.notes)
+                  .fontSize(12)
+                  .opacity(0.9)
+                  .margin({ top: 4 })
+                  .alignSelf(ItemAlign.Start);
               }
             }
             .padding(12)
-            .margin({ left: 12, right: 12, bottom: 8 })
+            .margin({ left: 12, right: 12, bottom: 15 })
             .backgroundColor('#f7f7f7')
-            .borderRadius(8);
-          }, (evt: CalendarEvent) => evt.id.toString());
-        }
+            .borderRadius(8)
+            .width('94%')
+          }
+        }, (evt: CalendarEvent) => evt.id.toString())
       }
     }
+    .width('100%')
+    .height('100%')
+    .alignListItem(ListItemAlign.Start)
+  }
+  @Builder
+  renderAllEventsList() {
+    List() {
+      if (this.eventsData.list.length === 0) {
+        ListItem() {
+          Column() {
+            Text('暂无日程')
+              .fontSize(16)
+              .opacity(0.6)
+              .margin({ top: 50 });
+            Text('点击右下角"+"按钮创建第一个日程')
+              .fontSize(12)
+              .opacity(0.4)
+              .margin({ top: 8 });
+          }
+          .width('100%')
+          .alignItems(HorizontalAlign.Center)
+        }
+      } else {
+        ForEach(this.getAllEvents(), (evt: CalendarEvent) => {
+          ListItem() {
+            Column() {
+              Row() {
+                Column() {
+                  Text(evt.dateKey).fontSize(12).opacity(0.6);
+                  Text(evt.title).fontSize(16).fontWeight(FontWeight.Medium);
+                  Text(`${evt.startTime} - ${evt.endTime}`).fontSize(12).opacity(0.8);
+                }.alignItems(HorizontalAlign.Start).layoutWeight(1);
+                Row() {
+                  Button('编辑')
+                    .onClick(() => this.navigateToEditEvent(evt))
+                    .margin({ right: 6 })
+                    .backgroundColor("#ffeccc2f");
+                  Button('删除')
+                    .onClick(() => this.deleteEvent(evt))
+                    .backgroundColor("#FF6B6B");
+                }.margin({top:14})
+              }
+              if (evt.notes && evt.notes.length > 0) {
+                Text(evt.notes)
+                  .fontSize(12)
+                  .opacity(0.9)
+                  .margin({ top: 4 })
+                  .alignSelf(ItemAlign.Start);
+              }
+            }
+            .padding(12)
+            .margin({ left: 12, right: 12, bottom: 15})
+            .backgroundColor('#f7f7f7')
+            .borderRadius(8)
+            .width('94%')
+          }
+        }, (evt: CalendarEvent) => evt.id.toString())
+      }
+    }
+    .width('100%')
+    .height('100%')
+    .alignListItem(ListItemAlign.Start)
   }
 
   build() {
@@ -392,7 +434,7 @@ export struct MyContent {
 
       Tabs({ barPosition: BarPosition.Start, index: this.currentTabIndex }) {
         TabContent() {
-          this.renderMonthView();
+            this.renderMonthView();
         }.tabBar('月')
 
         TabContent() {
@@ -404,15 +446,13 @@ export struct MyContent {
         }.tabBar('日')
 
         TabContent() {
-            this.renderAllEventsList();
+          this.renderAllEventsList();
         }.tabBar('所有日程')
       }
-      .onChange((i: number) => {
-        this.currentTabIndex = i;
-      })
+      .onChange((i: number) => {this.currentTabIndex = i;})
       .barMode(BarMode.Fixed)
       .width('100%')
-      .height('65%')
+      .height('90%')
     }
   }
 }
