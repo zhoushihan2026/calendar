@@ -14,13 +14,12 @@ export struct EditPage {
   @State formDate: Date = new Date();
   @State formStartMinutes: number = 0;
   @State formEndMinutes: number = 0;
-  @State formReminderMinutes: number = 10;
+  @State formReminderMinutes: number = 5;
   @State formNotes: string = '';
 
   // 管理编辑页面的状态和模式
   private editingEvent?: CalendarEvent;
   private isNewEvent: boolean = true;
-
   // 设置默认日期 加载现有事件数据
   aboutToAppear() {
     const params = router.getParams() as EditorParams;
