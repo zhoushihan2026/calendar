@@ -14,6 +14,9 @@ struct Index {
   @State monthViewDate: Date = new Date(); // 月视图显示哪个月份
   @StorageLink('eventsData') eventsData: EventsData = DEFAULT_EVENTS_DATA;
 
+  aboutToAppear() {
+    this.setupAllReminders();
+  }
   onPageShow() {
     const params = router.getParams() as RouterParams;
     if (params === undefined) {
@@ -54,12 +57,14 @@ struct Index {
 
     promptAction.showToast({ message: '删除成功', duration: 1500 });
   }
-  // 新建或更新日程
+  // 新建或编辑日程
   private addOrUpdateEvent(event: CalendarEvent) {
     let newList: CalendarEvent[];
+
     // 修改
     if (event.id && event.id > 0) {
       newList = this.eventsData.list.map(e => e.id === event.id ? event : e);
+      this.setupAllReminders(); // 修改日程后重新设置所有提醒
     }
     // 新增
     else {
@@ -75,38 +80,60 @@ struct Index {
         _timerId: undefined
       };
       newList = [...this.eventsData.list, newEvent];
-      this.scheduleReminder(newEvent);
+      this.scheduleReminder(newEvent); // 新增日程时设置单个提醒
     }
     // 重新渲染，显示更新后的事件
     this.eventsData = { list: newList };
   }
-  // 日程提醒
+  // 提醒器
   private scheduleReminder(evt: CalendarEvent) {
     if (evt.reminderMinutes === undefined || evt.reminderMinutes === null) {
       return;
     }
-    // 计算从现在到提醒时间的毫秒数
-    const timeParts = evt.startTime.split(':');
-    const sh = Number(timeParts[0]);
-    const sm = Number(timeParts[1]);
-    const eventStart = new Date(evt.dateKey + 'T00:00:00');
+
+    const timeParts: string[] = evt.startTime.split(':');
+    const sh: number = Number(timeParts[0]);
+    const sm: number = Number(timeParts[1]);
+    const eventStart: Date = new Date(evt.dateKey + 'T00:00:00');
     eventStart.setHours(sh, sm, 0, 0);
-    const triggerAt = new Date(eventStart.getTime() - evt.reminderMinutes * 60 * 1000);
-    const delayMs = triggerAt.getTime() - Date.now();
-    // 检查提醒时间是否已经过去
+    const triggerAt: Date = new Date(eventStart.getTime() - evt.reminderMinutes * 60 * 1000);
+    const delayMs: number = triggerAt.getTime() - Date.now();
+
     if (delayMs <= 0) {
       return;
     }
-    // 设置定时器，进行提醒
+
     const timerHandle: number = setTimeout(() => {
-      promptAction.showToast({
-        message: `日程提醒：${evt.title}`,
-        duration: 3000 });
+      promptAction.showDialog({
+        title: `${evt.title}`,
+        message: `时间：${evt.startTime}-${evt.endTime}\n${evt.notes || ''}`,
+        buttons: [{ text: '知道了', color: '#007DFF' }]
+      }).then(() => {
+        console.log('弹窗显示成功！');
+      }).catch((error: Error) => {
+        console.error('弹窗显示失败:', error);
+      });
+
     }, delayMs) as number;
-    // 将定时器的标识符保存到事件对象中，方便以后取消这个定时器
+
     evt._timerId = timerHandle;
   }
-  // 工具 - 计算新事件id
+
+  private setupAllReminders() {
+    // 清理旧定时器
+    this.eventsData.list.forEach(evt => {
+      if (evt._timerId) {
+        clearTimeout(evt._timerId);
+        evt._timerId = undefined;
+      }
+    });
+
+    // 设置新提醒
+    this.eventsData.list.forEach(evt => {
+      this.scheduleReminder(evt);
+    });
+  }
+  // 获取新增事件id
   private getNextEventId(): number {
     if (this.eventsData.list.length === 0) {
       return 1; // 如果没有事件，从1开始
