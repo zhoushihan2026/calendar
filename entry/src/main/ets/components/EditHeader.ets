@@ -36,11 +36,7 @@ export struct EditHeader {
       reminderMinutes: this.formReminderMinutes,
       notes: this.formNotes
     };
-    // 显示保存成功提示
-    promptAction.showToast({
-      message: this.isNewEvent ? '创建成功' : '更新成功',
-      duration: 1500
-    });
+
     // 返回数据到主页面
     router.back({
       url: 'pages/Index',

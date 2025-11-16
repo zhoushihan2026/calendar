@@ -15,7 +15,7 @@ struct Index {
   @StorageLink('eventsData') eventsData: EventsData = DEFAULT_EVENTS_DATA;
 
   aboutToAppear() {
-    this.setupAllReminders();
+    this.setupAllReminders(); // 不显示统计信息
   }
   onPageShow() {
     const params = router.getParams() as RouterParams;
@@ -60,11 +60,12 @@ struct Index {
   // 新建或编辑日程
   private addOrUpdateEvent(event: CalendarEvent) {
     let newList: CalendarEvent[];
+    let successMessage = '';
 
     // 修改
     if (event.id && event.id > 0) {
       newList = this.eventsData.list.map(e => e.id === event.id ? event : e);
-      this.setupAllReminders(); // 修改日程后重新设置所有提醒
+      successMessage = '更新成功';
     }
     // 新增
     else {
@@ -80,45 +81,49 @@ struct Index {
         _timerId: undefined
       };
       newList = [...this.eventsData.list, newEvent];
-      this.scheduleReminder(newEvent); // 新增日程时设置单个提醒
+      successMessage = '创建成功';
     }
-    // 重新渲染，显示更新后的事件
+
     this.eventsData = { list: newList };
+
+    // 重新设置所有提醒
+    this.setupAllReminders();
+
+    // 统计远期事件数量并显示提示
+    this.showOperationResult(successMessage);
   }
-  // 提醒器
-  private scheduleReminder(evt: CalendarEvent) {
-    if (evt.reminderMinutes === undefined || evt.reminderMinutes === null) {
-      return;
+  // 统计并显示操作结果
+  private showOperationResult(successMessage: string) {
+    let longTermCount = 0;
+
+    this.eventsData.list.forEach(evt => {
+      const timeParts: string[] = evt.startTime.split(':');
+      const sh: number = Number(timeParts[0]);
+      const sm: number = Number(timeParts[1]);
+      const dateParts = evt.dateKey.split('-');
+      const year = Number(dateParts[0]);
+      const month = Number(dateParts[1]);
+      const day = Number(dateParts[2]);
+      const eventStart: Date = new Date(year, month - 1, day, sh, sm, 0, 0);
+      const delayMs: number = eventStart.getTime() - Date.now();
+
+      if (delayMs > 2147483647) {
+        longTermCount++;
+      }
+    });
+
+    // 组合提示信息
+    let message = successMessage;
+    if (longTermCount > 0) {
+      message += `，${longTermCount}个远期事件将在接近时提醒`;
     }
 
-    const timeParts: string[] = evt.startTime.split(':');
-    const sh: number = Number(timeParts[0]);
-    const sm: number = Number(timeParts[1]);
-    const eventStart: Date = new Date(evt.dateKey + 'T00:00:00');
-    eventStart.setHours(sh, sm, 0, 0);
-    const triggerAt: Date = new Date(eventStart.getTime() - evt.reminderMinutes * 60 * 1000);
-    const delayMs: number = triggerAt.getTime() - Date.now();
-
-    if (delayMs <= 0) {
-      return;
-    }
-
-    const timerHandle: number = setTimeout(() => {
-      promptAction.showDialog({
-        title: `${evt.title}`,
-        message: `时间：${evt.startTime}-${evt.endTime}\n${evt.notes || ''}`,
-        buttons: [{ text: '知道了', color: '#007DFF' }]
-      }).then(() => {
-        console.log('弹窗显示成功！');
-      }).catch((error: Error) => {
-        console.error('弹窗显示失败:', error);
-      });
-
-    }, delayMs) as number;
-
-    evt._timerId = timerHandle;
+    promptAction.showToast({
+      message: message,
+      duration: 3000
+    });
   }
-
+  // 设置所有提醒
   private setupAllReminders() {
     // 清理旧定时器
     this.eventsData.list.forEach(evt => {
@@ -132,6 +137,43 @@ struct Index {
     this.eventsData.list.forEach(evt => {
       this.scheduleReminder(evt);
     });
+  }
+  // 提醒器
+  private scheduleReminder(evt: CalendarEvent) {
+    if (evt.reminderMinutes === undefined || evt.reminderMinutes === null) {
+      return;
+    }
+
+    const timeParts: string[] = evt.startTime.split(':');
+    const sh: number = Number(timeParts[0]);
+    const sm: number = Number(timeParts[1]);
+
+    const dateParts = evt.dateKey.split('-');
+    const year = Number(dateParts[0]);
+    const month = Number(dateParts[1]);
+    const day = Number(dateParts[2]);
+
+    const eventStart: Date = new Date(year, month - 1, day, sh, sm, 0, 0);
+    const triggerAt: Date = new Date(eventStart.getTime() - evt.reminderMinutes * 60 * 1000);
+    const delayMs: number = triggerAt.getTime() - Date.now();
+
+    const MAX_SAFE_DELAY = 2147483647; // 约24.8天
+
+    if (delayMs <= 0) {
+      return;
+    }
+
+    // 务实策略：只处理24天内的提醒
+    if (delayMs <= MAX_SAFE_DELAY) {
+      const timerHandle: number = setTimeout(() => {
+        promptAction.showDialog({
+          title: `${evt.title}`,
+          message: `时间：${evt.startTime}-${evt.endTime}\n${evt.notes || ''}`,
+          buttons: [{ text: '知道了', color: '#007DFF' }]
+        });
+      }, delayMs) as number;
+      evt._timerId = timerHandle;
+    }
   }
   // 获取新增事件id
   private getNextEventId(): number {
