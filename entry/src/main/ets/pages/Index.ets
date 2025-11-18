@@ -4,6 +4,7 @@ import { MyHeader } from '../components/MyHeader';
 import { MyContent } from '../components/MyContent';
 import { MyFooter } from '../components/MyFooter';
 import { CalendarEvent, RouterParams , EventsData, DEFAULT_EVENTS_DATA} from '../utils/CalendarTypes';
+import { ReminderManager } from '../utils/ReminderManager';
 
 @Entry
 @Component
@@ -15,7 +16,7 @@ struct Index {
   @StorageLink('eventsData') eventsData: EventsData = DEFAULT_EVENTS_DATA;
 
   aboutToAppear() {
-    this.setupAllReminders(); // 不显示统计信息
+    this.initializeSystemReminders(); // 初始化系统提醒
   }
   onPageShow() {
     const params = router.getParams() as RouterParams;
@@ -44,32 +45,91 @@ struct Index {
       }
     }
   }
+  // 初始化系统提醒
+  private async initializeSystemReminders() {
+    let hasUpdates = false;
+    const updatedList: CalendarEvent[] = [];
+
+    // 为所有需要提醒的事件创建系统提醒
+    for (const event of this.eventsData.list) {
+      if (event.reminderMinutes !== undefined && event.reminderMinutes !== null && !event.reminderId) {
+        const reminderId = await ReminderManager.createReminder(event);
+        if (reminderId > 0) {
+          // 手动创建新对象并设置 reminderId
+          const updatedEvent: CalendarEvent = {
+            id: event.id,
+            title: event.title,
+            dateKey: event.dateKey,
+            startTime: event.startTime,
+            endTime: event.endTime,
+            reminderMinutes: event.reminderMinutes,
+            notes: event.notes,
+            reminderId: reminderId
+          };
+          updatedList.push(updatedEvent);
+          hasUpdates = true;
+        } else {
+          // 保持原事件不变
+          updatedList.push(event);
+        }
+      } else {
+        // 保持原事件不变
+        updatedList.push(event);
+      }
+    }
+
+    if (hasUpdates) {
+      this.eventsData = { list: updatedList };
+    }
+  }
   // 删除日程
-  private deleteEvent(event: CalendarEvent) {
+  private async deleteEvent(event: CalendarEvent) {
+    // 取消系统提醒
+    if (event.reminderId) {
+      await ReminderManager.cancelReminder(event.reminderId);
+    }
+
     // 从数组中移除事件
     const updatedList = this.eventsData.list.filter(e => e.id !== event.id);
     this.eventsData = { list: updatedList };
 
-    // 取消提醒定时器
-    if (event._timerId) {
-      clearTimeout(event._timerId);
-    }
-
     promptAction.showToast({ message: '删除成功', duration: 1500 });
   }
   // 新建或编辑日程
-  private addOrUpdateEvent(event: CalendarEvent) {
+  private async addOrUpdateEvent(event: CalendarEvent) {
     let newList: CalendarEvent[];
     let successMessage = '';
 
-    // 修改
     if (event.id && event.id > 0) {
-      newList = this.eventsData.list.map(e => e.id === event.id ? event : e);
+      // 修改：先取消旧的系统提醒
+      const oldEvent = this.eventsData.list.find(e => e.id === event.id);
+      if (oldEvent?.reminderId) {
+        await ReminderManager.cancelReminder(oldEvent.reminderId);
+      }
+
+      // 创建新的系统提醒
+      const reminderId = await ReminderManager.createReminder(event);
+
+      // 手动创建更新后的事件对象
+      const updatedEvent: CalendarEvent = {
+        id: event.id,
+        title: event.title,
+        dateKey: event.dateKey,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        reminderMinutes: event.reminderMinutes,
+        notes: event.notes,
+        reminderId: reminderId
+      };
+
+      newList = this.eventsData.list.map(e => e.id === event.id ? updatedEvent : e);
       successMessage = '更新成功';
-    }
-    // 新增
-    else {
+    } else {
+      // 新增
       const newId = this.getNextEventId();
+      const reminderId = await ReminderManager.createReminder(event);
+
+      // 手动创建新事件对象
       const newEvent: CalendarEvent = {
         id: newId,
         title: event.title,
@@ -78,104 +138,21 @@ struct Index {
         endTime: event.endTime,
         reminderMinutes: event.reminderMinutes,
         notes: event.notes,
-        _timerId: undefined
+        reminderId: reminderId
       };
-      newList = [...this.eventsData.list, newEvent];
+
+      // 使用数组拼接创建新数组
+      newList = [];
+      for (let i = 0; i < this.eventsData.list.length; i++) {
+        newList.push(this.eventsData.list[i]);
+      }
+      newList.push(newEvent);
       successMessage = '创建成功';
     }
 
     this.eventsData = { list: newList };
-
-    // 重新设置所有提醒
-    this.setupAllReminders();
-
-    // 统计远期事件数量并显示提示
-    this.showOperationResult(successMessage);
+    promptAction.showToast({ message: successMessage, duration: 1500 });
   }
-  // 统计并显示操作结果
-  private showOperationResult(successMessage: string) {
-    let longTermCount = 0;
-
-    this.eventsData.list.forEach(evt => {
-      const timeParts: string[] = evt.startTime.split(':');
-      const sh: number = Number(timeParts[0]);
-      const sm: number = Number(timeParts[1]);
-      const dateParts = evt.dateKey.split('-');
-      const year = Number(dateParts[0]);
-      const month = Number(dateParts[1]);
-      const day = Number(dateParts[2]);
-      const eventStart: Date = new Date(year, month - 1, day, sh, sm, 0, 0);
-      const delayMs: number = eventStart.getTime() - Date.now();
-
-      if (delayMs > 2147483647) {
-        longTermCount++;
-      }
-    });
-
-    // 组合提示信息
-    let message = successMessage;
-    if (longTermCount > 0) {
-      message += `，${longTermCount}个远期事件将在接近时提醒`;
-    }
-
-    promptAction.showToast({
-      message: message,
-      duration: 3000
-    });
-  }
-  // 设置所有提醒
-  private setupAllReminders() {
-    // 清理旧定时器
-    this.eventsData.list.forEach(evt => {
-      if (evt._timerId) {
-        clearTimeout(evt._timerId);
-        evt._timerId = undefined;
-      }
-    });
-
-    // 设置新提醒
-    this.eventsData.list.forEach(evt => {
-      this.scheduleReminder(evt);
-    });
-  }
-  // 提醒器
-  private scheduleReminder(evt: CalendarEvent) {
-    if (evt.reminderMinutes === undefined || evt.reminderMinutes === null) {
-      return;
-    }
-
-    const timeParts: string[] = evt.startTime.split(':');
-    const sh: number = Number(timeParts[0]);
-    const sm: number = Number(timeParts[1]);
-
-    const dateParts = evt.dateKey.split('-');
-    const year = Number(dateParts[0]);
-    const month = Number(dateParts[1]);
-    const day = Number(dateParts[2]);
-
-    const eventStart: Date = new Date(year, month - 1, day, sh, sm, 0, 0);
-    const triggerAt: Date = new Date(eventStart.getTime() - evt.reminderMinutes * 60 * 1000);
-    const delayMs: number = triggerAt.getTime() - Date.now();
-
-    const MAX_SAFE_DELAY = 2147483647; // 约24.8天
-
-    if (delayMs <= 0) {
-      return;
-    }
-
-    // 务实策略：只处理24天内的提醒
-    if (delayMs <= MAX_SAFE_DELAY) {
-      const timerHandle: number = setTimeout(() => {
-        promptAction.showDialog({
-          title: `${evt.title}`,
-          message: `时间：${evt.startTime}-${evt.endTime}\n${evt.notes || ''}`,
-          buttons: [{ text: '知道了', color: '#007DFF' }]
-        });
-      }, delayMs) as number;
-      evt._timerId = timerHandle;
-    }
-  }
-  // 获取新增事件id
   private getNextEventId(): number {
     if (this.eventsData.list.length === 0) {
       return 1; // 如果没有事件，从1开始

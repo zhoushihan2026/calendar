@@ -11,6 +11,11 @@
     {
       "name": "EntryAbility_label",
       "value": "日历"
+    },
+
+    {
+      "name": "reminder_permission_reason",
+      "value": "用于日程提醒功能"
     }
   ]
 }

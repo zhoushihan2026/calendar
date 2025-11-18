@@ -128,10 +128,6 @@ export struct MyContent {
         // 实际删除逻辑 - 通知父组件
         const updatedList = this.eventsData.list.filter(e => e.id !== evt.id);
         this.eventsData = { list: updatedList };
-        // 取消提醒定时器
-        if (evt._timerId) {
-          clearTimeout(evt._timerId);
-        }
         promptAction.showToast({ message: '已删除日程', duration: 1500 });
       }
     });

@@ -31,7 +31,7 @@ export struct EditInputTitle {
         .padding(12)
         .backgroundColor(Color.White)
         .borderRadius(8)
-        .margin({ top:10,bottom: 8 });
+        .margin({ top:10,bottom: 8 })
     }.backgroundColor('#fff3f3f3')
     .padding(15)
     .borderRadius(10)
