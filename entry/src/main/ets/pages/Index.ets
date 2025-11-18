@@ -17,6 +17,7 @@ struct Index {
 
   aboutToAppear() {
     this.initializeSystemReminders(); // 初始化系统提醒
+    this.triggerExpiryCheck();// 应用启动时触发过期检查
   }
   onPageShow() {
     const params = router.getParams() as RouterParams;
@@ -29,6 +30,8 @@ struct Index {
         const newEvent = JSON.parse(params.event) as CalendarEvent;
         this.addOrUpdateEvent(newEvent);
         router.replaceUrl({ url: 'pages/Index' });
+        // 保存后触发过期检查
+        this.triggerExpiryCheck();
       }
       catch (error) {
         console.error('解析事件数据失败:', error);
@@ -40,6 +43,8 @@ struct Index {
         const deleteEvent = JSON.parse(params.event) as CalendarEvent;
         this.deleteEvent(deleteEvent);
         router.replaceUrl({ url: 'pages/Index' });
+        // 删除后触发过期检查
+        this.triggerExpiryCheck();
       } catch (error) {
         console.error('解析删除事件数据失败:', error);
       }
@@ -92,6 +97,9 @@ struct Index {
     // 从数组中移除事件
     const updatedList = this.eventsData.list.filter(e => e.id !== event.id);
     this.eventsData = { list: updatedList };
+
+    // 删除后触发过期检查
+    this.triggerExpiryCheck();
 
     promptAction.showToast({ message: '删除成功', duration: 1500 });
   }
@@ -151,6 +159,8 @@ struct Index {
     }
 
     this.eventsData = { list: newList };
+    // 添加/更新后触发过期检查
+    this.triggerExpiryCheck();
     promptAction.showToast({ message: successMessage, duration: 1500 });
   }
   private getNextEventId(): number {
@@ -161,6 +171,12 @@ struct Index {
     const ids = this.eventsData.list.map(event => event.id);
     const maxId = Math.max(...ids);
     return maxId + 1;
+  }
+  // 触发过期检查的方法
+  private triggerExpiryCheck() {
+    // 通过创建新对象来触发ArkUI的响应式更新
+    // 这样 MyContent 组件中的 isEventExpired 方法会被重新调用
+    this.eventsData = { list: [...this.eventsData.list] };
   }
 
   build() {
