@@ -140,6 +140,27 @@ export struct MyContent {
       return this.parseTimeToMinutes(a.startTime) - this.parseTimeToMinutes(b.startTime);
     });
   }
+  // 工具 -判断事件是否过期
+  private isEventExpired(evt: CalendarEvent): boolean {
+    const eventDate = new Date(evt.dateKey);
+    const now = new Date();
+
+    // 如果是过去日期，直接返回过期
+    if (eventDate < new Date(now.getFullYear(), now.getMonth(), now.getDate())) {
+      return true;
+    }
+
+    // 如果是今天，检查时间是否已过
+    if (eventDate.getFullYear() === now.getFullYear() &&
+      eventDate.getMonth() === now.getMonth() &&
+      eventDate.getDate() === now.getDate()) {
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      const eventEndMinutes = this.parseTimeToMinutes(evt.endTime);
+      return currentMinutes > eventEndMinutes;
+    }
+
+    return false;
+  }
 
   @Builder
   renderMonthView() {
@@ -169,7 +190,9 @@ export struct MyContent {
                   .height(30)
                 ForEach(this.getPreviewEvents(d), (e: CalendarEvent) => {
                   Row() {
-                    Text('•').fontColor('#fff1dc1e').fontSize(20);
+                    Text('•')
+                      .fontColor(this.isEventExpired(e) ? '#ffcccccc' : '#fff1dc1e')
+                      .fontSize(20);
                   }.padding({ left: 4, right: 4 });
                 }, (e: CalendarEvent) => e.id.toString());
               }
@@ -199,9 +222,9 @@ export struct MyContent {
                 Column() {
                   Row() {
                     Column() {
-                      Text(evt.dateKey).fontSize(12).opacity(0.6);
-                      Text(evt.title).fontSize(16).fontWeight(FontWeight.Medium).margin(2);
-                      Text(`${evt.startTime} - ${evt.endTime}`).fontSize(12).opacity(0.8);
+                      Text(evt.dateKey).fontSize(12).opacity(this.isEventExpired(evt) ? 0.4 : 0.6);
+                      Text(evt.title).fontSize(16).fontWeight(FontWeight.Medium).margin(2) .fontColor(this.isEventExpired(evt) ? '#ff7c7c7c' : '#000000');
+                      Text(`${evt.startTime} - ${evt.endTime}`).fontSize(12) .opacity(this.isEventExpired(evt) ? 0.4 : 0.8);
                     }.alignItems(HorizontalAlign.Start).layoutWeight(1);
                   }
                   if (evt.notes && evt.notes.length > 0) {
@@ -210,8 +233,9 @@ export struct MyContent {
                 }
                 .width('100%')
                 .padding(12)
+                .opacity(this.isEventExpired(evt) ? 0.4 : 0.9)
                 .margin({ left: 12, right: 12, bottom: 8 })
-                .backgroundColor('#f7f7f7')
+                .backgroundColor(this.isEventExpired(evt) ? '#f5f5f5' : '#f7f7f7')
                 .borderRadius(8)
                 .onClick(() => {this.navigateToEditEvent(evt);});
               }, (evt: CalendarEvent) => evt.id.toString());
@@ -269,14 +293,15 @@ export struct MyContent {
                           Text(evt.title)
                             .fontSize(12)
                             .maxLines(1)
+                            .fontColor(this.isEventExpired(evt) ? '#ff7c7c7c' : '#000000')
                             .fontWeight(FontWeight.Medium)
                             .margin({bottom:2});
                           Text(`${evt.startTime}-${evt.endTime}`)
                             .fontSize(10)
-                            .opacity(0.7);
+                            .opacity(this.isEventExpired(evt) ? 0.4 : 0.8);
                         }
                         .padding(5)
-                        .backgroundColor('#fffff7c5')
+                        .backgroundColor(this.isEventExpired(evt) ? '#fff0f0f0' : '#fffff7c5')
                         .borderRadius(4)
                         .margin({ bottom: 4,top:4 })
                         .width('100%')
@@ -325,31 +350,33 @@ export struct MyContent {
             Column() {
               Row() {
                 Column() {
-                  Text(evt.dateKey).fontSize(12).opacity(0.6);
-                  Text(evt.title).fontSize(16).fontWeight(FontWeight.Medium);
-                  Text(`${evt.startTime} - ${evt.endTime}`).fontSize(12).opacity(0.8);
+                  Text(evt.dateKey).fontSize(12).opacity(this.isEventExpired(evt) ? 0.4 : 0.6);
+                  Text(evt.title).fontSize(16).fontWeight(FontWeight.Medium).fontColor(this.isEventExpired(evt) ? '#ff7c7c7c' : '#000000');
+                  Text(`${evt.startTime} - ${evt.endTime}`).fontSize(12).opacity(this.isEventExpired(evt) ? 0.4 : 0.8);
                 }.alignItems(HorizontalAlign.Start).layoutWeight(1);
                 Row() {
                   Button('编辑')
                     .onClick(() => this.navigateToEditEvent(evt))
                     .margin({ right: 6 })
-                    .backgroundColor("#ffeccc2f");
+                    .backgroundColor(this.isEventExpired(evt) ? '#ffffe59f' : '#ffeccc2f')
+                    .opacity(this.isEventExpired(evt) ? 0.6 : 1);
                   Button('删除')
                     .onClick(() => this.deleteEvent(evt))
-                    .backgroundColor("#FF6B6B");
+                    .backgroundColor(this.isEventExpired(evt) ? '#ffffb0b9' : '#FF6B6B')
+                    .opacity(this.isEventExpired(evt) ? 0.6 : 1);
                 }.margin({top:15})
               }
               if (evt.notes && evt.notes.length > 0) {
                 Text(evt.notes)
                   .fontSize(12)
-                  .opacity(0.9)
+                  .opacity(this.isEventExpired(evt) ? 0.4 : 0.9)
                   .margin({ top: 4 })
                   .alignSelf(ItemAlign.Start);
               }
             }
             .padding(12)
             .margin({ left: 12, right: 12, bottom: 15 })
-            .backgroundColor('#f7f7f7')
+            .backgroundColor(this.isEventExpired(evt) ? '#f5f5f5' : '#f7f7f7')
             .borderRadius(8)
             .width('94%')
           }
@@ -384,31 +411,33 @@ export struct MyContent {
             Column() {
               Row() {
                 Column() {
-                  Text(evt.dateKey).fontSize(12).opacity(0.6);
-                  Text(evt.title).fontSize(16).fontWeight(FontWeight.Medium);
-                  Text(`${evt.startTime} - ${evt.endTime}`).fontSize(12).opacity(0.8);
+                  Text(evt.dateKey).fontSize(12).opacity(this.isEventExpired(evt) ? 0.4 : 0.6);
+                  Text(evt.title).fontSize(16).fontWeight(FontWeight.Medium).fontColor(this.isEventExpired(evt) ? '#ff7c7c7c' : '#000000');
+                  Text(`${evt.startTime} - ${evt.endTime}`).fontSize(12).opacity(this.isEventExpired(evt) ? 0.4 : 0.8);
                 }.alignItems(HorizontalAlign.Start).layoutWeight(1);
                 Row() {
                   Button('编辑')
                     .onClick(() => this.navigateToEditEvent(evt))
                     .margin({ right: 6 })
-                    .backgroundColor("#ffeccc2f");
+                    .backgroundColor(this.isEventExpired(evt) ? '#ffffe59f' : '#ffeccc2f')
+                    .opacity(this.isEventExpired(evt) ? 0.6 : 1);
                   Button('删除')
                     .onClick(() => this.deleteEvent(evt))
-                    .backgroundColor("#FF6B6B");
+                    .backgroundColor(this.isEventExpired(evt) ? '#ffffb0b9' : '#FF6B6B')
+                    .opacity(this.isEventExpired(evt) ? 0.6 : 1);
                 }.margin({top:14})
               }
               if (evt.notes && evt.notes.length > 0) {
                 Text(evt.notes)
                   .fontSize(12)
-                  .opacity(0.9)
+                  .opacity(this.isEventExpired(evt) ? 0.4 : 0.9)
                   .margin({ top: 4 })
                   .alignSelf(ItemAlign.Start);
               }
             }
             .padding(12)
             .margin({ left: 12, right: 12, bottom: 15})
-            .backgroundColor('#f7f7f7')
+            .backgroundColor(this.isEventExpired(evt) ? '#f5f5f5' : '#f7f7f7')
             .borderRadius(8)
             .width('94%')
           }
