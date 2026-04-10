@@ -10,3 +10,14 @@
 /.clang-tidy
 **/.test
 /.appanalyzer
+
+# 签名证书文件（不要提交到 Git）
+*.p12
+*.p7b
+*.jks
+*.keystore
+*.cer
+*.crt
+*.pem
+*.key
+signing-config.json

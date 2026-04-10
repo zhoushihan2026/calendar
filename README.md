@@ -1,14 +1,72 @@
-# 日历软件
+# Calendar
 
-#### 介绍
-鸿蒙开发一个日历App，实现的功能有：
-1.  日历视图展示（月视图、周视图、日视图）；
-2.  日程添加、编辑、查看和删除；
-3.  日程提醒功能的实现；
+Calendar is a HarmonyOS sample app built with ArkTS.
 
+## Features
 
-#### 安装教程
+- Month, week, and day calendar views
+- Create, edit, view, and delete schedules
+- Reminder support for events
 
-安装到你的电脑，用DevEco Studio打开，要体验完整功能就要用模拟机，预览器不能展示完整功能
+## Project Structure
 
+```text
+calendar1/
+|- AppScope/
+|- entry/
+|  |- src/main/ets/
+|  |- src/main/resources/
+|- hvigor/
+|- build-profile.json5
+```
 
+## Development Environment
+
+- DevEco Studio
+- HarmonyOS SDK 6.0.0(20)
+
+## Run Locally
+
+1. Open the project in DevEco Studio.
+2. Wait for dependency sync to finish.
+3. Connect a HarmonyOS device or start an emulator.
+4. Click `Run` to launch the app.
+
+## Build
+
+Use DevEco Studio:
+
+```text
+Build -> Build Hap(s)/APP(s) -> Build Hap(s)
+```
+
+Or use the helper scripts:
+
+```bash
+build.bat
+```
+
+```bash
+chmod +x build.sh
+./build.sh
+```
+
+Or use the command line:
+
+```bash
+hvigorw assembleHap --mode module -p product=default --analyze
+```
+
+```bash
+hvigorw assembleHap --mode module -p product=default --analyze -p buildMode=release
+```
+
+## Output
+
+- Debug: `entry/build/default/outputs/default/entry-default-debug.hap`
+- Release: `entry/build/default/outputs/default/entry-default-release.hap`
+
+## Notes
+
+- Local generated folders such as `oh_modules`, `.hvigor`, `.idea`, and `build` are not intended for upload.
+- The root `README.md` is included so the repository homepage shows a project overview.
